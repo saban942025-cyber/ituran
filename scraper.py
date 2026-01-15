@@ -28,8 +28,7 @@ def run_scraper():
     try:
         print("--- שלב 1: גישה לכתובת המאומתת ---")
         # שימוש בכתובת שחילצנו מהקונסולה
-        driver.get("https://www.ituran.com/iweb2/login.aspx") 
-        
+        driver.get("https://www.ituran.com/iweb2/login.aspx")        
         wait = WebDriverWait(driver, 30)
         
         # שלב 2: כניסה למערכת עם ה-IDs הנכונים
