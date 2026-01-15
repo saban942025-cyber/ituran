@@ -20,8 +20,7 @@ def run_scraper():
     try:
         # כאן התיקון הקריטי - הכתובת שמצאנו ב-Network Tab
         print("Connecting to Ituran Official Login...")
-        driver.get("https://www.ituran.com/iweb2/login.aspx") 
-        
+        driver.get("https://www.ituran.com/iweb2/login.aspx")        
         wait = WebDriverWait(driver, 30)
         
         # משיכת פרטים מה-Secrets
