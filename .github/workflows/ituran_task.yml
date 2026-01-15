@@ -18,8 +18,8 @@ def run_scraper():
     
     try:
         # 1. בדיקת שלמות הנתונים - כאן הבעיה שלך!
-        user = os.getenv('ITURAN1_USER')
-        password = os.getenv('RAMI_PASS')
+        user = os.getenv('ITURAN_USER')
+        password = os.getenv('ITURAN_PASS')
         
         if not user or not password:
             print(f"CRITICAL ERROR: Missing Secrets! User: {bool(user)}, Pass: {bool(password)}")
