@@ -23,18 +23,16 @@ def run_scraper():
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
     
     driver = webdriver.Chrome(options=chrome_options)
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 40)
 
     try:
         print("Starting... Accessing Ituran Official Login")
         driver.get("https://www.ituran.com/iweb2/login.aspx")
-        time.sleep(10) # המתנה לטעינה ראשונית
+        time.sleep(10) # זמן טעינה ראשוני
 
-        # פונקציית עזר לחדירה לפריימים
-        def find_login_fields():
-            print("Searching for login fields in current context...")
+        # פונקציה שמחפשת את השדות בכל הפריימים בדף
+        def try_find_login():
             try:
-                # ניסיון למצוא את המשתמש
                 u = driver.find_element(By.ID, "txtUserName")
                 p = driver.find_element(By.ID, "txtPassword")
                 b = driver.find_element(By.ID, "btnLogin")
@@ -42,42 +40,45 @@ def run_scraper():
             except:
                 return None
 
-        # שלב 1: חיפוש בפריימים
-        login_elements = find_login_fields()
-        if not login_elements:
+        # חיפוש בפריים הראשי ואז בפריימים פנימיים
+        login_fields = try_find_login()
+        if not login_fields:
             iframes = driver.find_elements(By.TAG_NAME, "iframe")
-            print(f"Elements not found in main. Found {len(iframes)} iframes. Searching inside...")
-            for index, frame in enumerate(iframes):
+            print(f"Main page empty. Checking {len(iframes)} iframes...")
+            for idx, frame in enumerate(iframes):
                 driver.switch_to.default_content()
-                driver.switch_to.frame(index)
-                login_elements = find_login_fields()
-                if login_elements:
-                    print(f"Success! Found fields in iframe index {index}")
+                driver.switch_to.frame(idx)
+                login_fields = try_find_login()
+                if login_fields:
+                    print(f"Found login fields in iframe {idx}")
                     break
-        
-        if not login_elements:
-            print("ERROR: Could not find login fields in any frame. Saving screenshot.")
-            driver.save_screenshot("debug_no_fields.png")
+
+        if not login_fields:
+            print("FAILED: Could not find login fields. Screenshot saved.")
+            driver.save_screenshot("no_fields_error.png")
             return
 
-        user_input, pass_input, login_btn = login_elements
+        user_input, pass_input, login_btn = login_fields
         
-        # הזנת פרטים
+        # שימוש ב-Secrets עם שמות גמישים
         user_val = os.getenv('USER') or os.getenv('ITURAN_USER')
         pass_val = os.getenv('PASS') or os.getenv('ITURAN_PASS')
         
+        if not user_val or not pass_val:
+            print(f"CRITICAL: Credentials missing in ENV! User found: {bool(user_val)}, Pass found: {bool(pass_val)}")
+            return
+
         user_input.send_keys(user_val)
         pass_input.send_keys(pass_val)
         login_btn.click()
-        print("Login clicked. Waiting for dashboard...")
+        print("Login button clicked.")
 
-        # שלב 2: המתנה לטעינת הנתונים
+        # המתנה לטעינת הדאשבורד
         time.sleep(30)
-        driver.switch_to.default_content() # חזרה למבנה הראשי
+        driver.switch_to.default_content()
 
-        # חילוץ נתונים
         elements = driver.find_elements(By.CLASS_NAME, "StatOnMap")
-        print(f"Found {len(elements)} vehicle elements.")
+        print(f"Found {len(elements)} vehicles.")
 
         current_data = {}
         for el in elements:
@@ -94,11 +95,11 @@ def run_scraper():
 
         if current_data:
             update_local_db(current_data)
-            print("Database updated successfully.")
+            print("Success: Database updated.")
 
     except Exception as e:
-        print(f"Error during run: {str(e)}")
-        driver.save_screenshot("critical_error.png")
+        print(f"Error: {str(e)}")
+        driver.save_screenshot("crash_debug.png")
         raise e
     finally:
         driver.quit()
