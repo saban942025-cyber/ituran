@@ -14,72 +14,73 @@ def run_scraper():
     
     chrome_options = Options()
     chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--window-size=1920,1080")
-    # הוספת User Agent כדי להיראות כמו דפדפן אמיתי ולא בוט
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
     
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        print("🚀 מתחבר למערכת...")
+        print("🚀 מתחבר למערכת איתורן...")
         driver.get("https://www.ituran.com/iweb2/login.aspx")
         
-        wait = WebDriverWait(driver, 30)
-        # הזנת פרטים (כבר עובד)
+        wait = WebDriverWait(driver, 40)
+        # כניסה למערכת
         wait.until(EC.presence_of_element_located((By.ID, "txtUserName"))).send_keys(user)
         driver.find_element(By.ID, "txtPassword").send_keys(password)
         driver.find_element(By.ID, "btnLogin").click()
         
-        print("🔓 לחיצה בוצעה. ממתין 60 שניות לטעינת כל שכבות המפה...")
+        print("🔓 לוגין בוצע. ממתין 60 שניות לטעינה מלאה של המפה והרכבים...")
         time.sleep(60) 
 
-        # --- חיזוק: חיפוש רחב במיוחד ---
+        # --- מנגנון "פצצת עומק" למציאת רכבים ---
         current_scan = {}
         
-        # חיפוש כל אלמנט שיש לו ID שמתחיל ב-veh (נפוץ באיתורן) או Class של רכב
-        # אנחנו מחפשים גם בתוך iFrames במידה ויש
-        search_targets = [
-            "div.StatOnMap", 
-            "div[id*='veh']", 
-            "div[class*='vehicle']", 
-            "img[src*='vehicle']",
-            "div[title]" # כל דיב עם כותרת הוא חשוד
-        ]
-        
-        found_elements = []
-        for target in search_targets:
-            found_elements.extend(driver.find_elements(By.CSS_SELECTOR, target))
-        
-        print(f"🔎 נמצאו {len(found_elements)} אלמנטים חשודים כרכבים.")
+        # פונקציית עזר לסריקת פריימים
+        def scan_context():
+            # חיפוש לפי כל קלאס או ID שקשור לרכב באיתורן
+            targets = driver.find_elements(By.CSS_SELECTOR, "div[class*='Stat'], div[id*='veh'], div[id*='unit'], [title*='רכב']")
+            for el in targets:
+                try:
+                    v_id = el.get_attribute("id") or el.get_attribute("title")
+                    if not v_id or len(v_id) < 3: continue
+                    
+                    raw_info = el.get_attribute("title") or el.get_attribute("data_tooltip") or el.text
+                    status = "CLOSED"
+                    if any(word in raw_info for word in ["פתוח", "עבודה", "PTO", "פעיל"]):
+                        status = "OPEN"
+                    
+                    current_scan[v_id] = {
+                        "status": status,
+                        "last_seen": datetime.datetime.now().isoformat(),
+                        "debug_info": raw_info[:150] # נשלח למלשינון
+                    }
+                except: continue
 
-        for el in found_elements:
-            try:
-                # חילוץ מזהה רכב - אם אין ID, נשתמש בטקסט או במיקום
-                v_id = el.get_attribute("id") or el.get_attribute("title")
-                if not v_id or len(v_id) < 2: continue
-
-                # לקיחת כל המידע הגולמי לטובת ה"מלשינון"
-                raw_info = el.get_attribute("title") or el.text or "No Info"
-                
-                # זיהוי סטטוס PTO
-                status = "CLOSED"
-                if any(word in raw_info for word in ["פתוח", "עבודה", "PTO", "פעיל"]):
-                    status = "OPEN"
-                
-                current_scan[v_id] = {
-                    "status": status,
-                    "last_seen": datetime.datetime.now().isoformat(),
-                    "debug_info": raw_info[:100] # המלשינון יציג לנו את זה
-                }
-            except: continue
+        # סריקה בדף הראשי
+        scan_context()
+        
+        # אם עדיין ריק, סורק בתוך כל ה-iframes
+        if not current_scan:
+            iframes = driver.find_elements(By.TAG_NAME, "iframe")
+            print(f"🔎 לא נמצאו רכבים בדף הראשי. סורק {len(iframes)} פריימים...")
+            for i in range(len(iframes)):
+                try:
+                    driver.switch_to.default_content()
+                    driver.switch_to.frame(i)
+                    scan_context()
+                    if current_scan: 
+                        print(f"✅ נמצאו רכבים בפריים {i}!")
+                        break
+                except: continue
 
         if current_scan:
-            # עדכון הקובץ (שימוש בפונקציה הקיימת אצלך)
+            # עדכון ה-JSON הקיים
             update_local_db(current_scan)
-            print(f"✅ הצלחה! עודכנו {len(current_scan)} רכבים ב-JSON.")
+            print(f"💾 הצלחה! עודכנו {len(current_scan)} רכבים.")
         else:
-            print("❌ הכשל נמשך: לא נמצאו רכבים גם בחיפוש רחב. שומר צילום מסך.")
-            driver.save_screenshot("kשל_מפה.png")
+            print("❌ הכשל נמשך: המפה נראית ריקה לבוט.")
+            driver.save_screenshot("empty_map_debug.png")
 
     except Exception as e:
         print(f"⚠️ שגיאה: {str(e)}")
