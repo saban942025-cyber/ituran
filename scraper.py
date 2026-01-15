@@ -13,43 +13,40 @@ def run_scraper():
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--window-size=1920,1080")
     
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        # כאן התיקון הקריטי - הכתובת הנכונה!
+        # כאן התיקון הקריטי - הכתובת שמצאנו ב-Network Tab
         print("Connecting to Ituran Official Login...")
         driver.get("https://www.ituran.com/iweb2/login.aspx") 
         
         wait = WebDriverWait(driver, 30)
         
-        # משיכת הפרטים מה"כספת" (Secrets)
+        # משיכת פרטים מה-Secrets
         user_val = os.getenv('USER') or os.getenv('ITURAN_USER')
         pass_val = os.getenv('PASS') or os.getenv('ITURAN_PASS')
         
         if not user_val or not pass_val:
-            print("ERROR: Missing User or Password in GitHub Secrets!")
+            print("ERROR: Missing Credentials in GitHub Secrets!")
             return
 
-        # הזנת הפרטים לשדות הנכונים
+        # זיהוי השדות לפי המבנה של איתורן
         user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
         pass_input = driver.find_element(By.ID, "txtPassword")
         
         user_input.send_keys(user_val)
         pass_input.send_keys(pass_val)
         
-        # לחיצה על כפתור הכניסה
         login_btn = driver.find_element(By.ID, "btnLogin")
         login_btn.click()
         
-        print("Login successful! Dashboard is loading...")
-        time.sleep(20) # זמן לטעינת המפה והרכבים
+        print("Login clicked. Checking if we are in...")
+        time.sleep(20) 
         
-        # כאן יבוא המשך הקוד לסריקת ה-PTO
-        print("I am inside the system now.")
-
     except Exception as e:
-        print(f"Error during execution: {str(e)}")
+        print(f"Error: {str(e)}")
         raise e
     finally:
         driver.quit()
