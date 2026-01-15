@@ -8,14 +8,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-def get_pto_status(text):
-    if not text: return "IDLE"
-    # חיזוק מילות המפתח - כל מה שיכול להעיד על עבודה
-    keywords = ["פתוח", "עבודה", "PTO", "פעיל", "מנוף", "ON"]
-    if any(word in text for word in keywords):
-        return "OPEN"
-    return "CLOSED"
-
 def run_scraper():
     user = os.getenv('ITURAN_USER')
     password = os.getenv('ITURAN_PASS')
@@ -23,6 +15,8 @@ def run_scraper():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--window-size=1920,1080")
+    # הוספת User Agent כדי להיראות כמו דפדפן אמיתי ולא בוט
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
     
     driver = webdriver.Chrome(options=chrome_options)
     
@@ -30,52 +24,62 @@ def run_scraper():
         print("🚀 מתחבר למערכת...")
         driver.get("https://www.ituran.com/iweb2/login.aspx")
         
-        # לוגין
         wait = WebDriverWait(driver, 30)
+        # הזנת פרטים (כבר עובד)
         wait.until(EC.presence_of_element_located((By.ID, "txtUserName"))).send_keys(user)
         driver.find_element(By.ID, "txtPassword").send_keys(password)
         driver.find_element(By.ID, "btnLogin").click()
         
-        print("🔓 לחיצה בוצעה. ממתין 60 שניות לטעינה מלאה של כל הרכבים...")
+        print("🔓 לחיצה בוצעה. ממתין 60 שניות לטעינת כל שכבות המפה...")
         time.sleep(60) 
 
-        # --- החיזוק: חיפוש רב-שכבתי ---
+        # --- חיזוק: חיפוש רחב במיוחד ---
         current_scan = {}
         
-        # 1. חיפוש לפי קלאסים נפוצים באיתורן
-        elements = driver.find_elements(By.CSS_SERVER, ".StatOnMap, .v-marker, [id*='veh'], [class*='vehicle']")
+        # חיפוש כל אלמנט שיש לו ID שמתחיל ב-veh (נפוץ באיתורן) או Class של רכב
+        # אנחנו מחפשים גם בתוך iFrames במידה ויש
+        search_targets = [
+            "div.StatOnMap", 
+            "div[id*='veh']", 
+            "div[class*='vehicle']", 
+            "img[src*='vehicle']",
+            "div[title]" # כל דיב עם כותרת הוא חשוד
+        ]
         
-        # 2. אם לא מצא, ננסה "לגרד" את כל ה-Divים שיש להם טקסט
-        if not elements:
-            print("🔍 מנסה שיטת סריקה עמוקה...")
-            elements = driver.find_elements(By.XPATH, "//div[@title] | //div[@data-tooltip]")
+        found_elements = []
+        for target in search_targets:
+            found_elements.extend(driver.find_elements(By.CSS_SELECTOR, target))
+        
+        print(f"🔎 נמצאו {len(found_elements)} אלמנטים חשודים כרכבים.")
 
-        print(f"🔎 נמצאו {len(elements)} אלמנטים חשודים כרכבים.")
-
-        for el in elements:
+        for el in found_elements:
             try:
-                # חילוץ מידע מכל מקום אפשרי באלמנט
-                v_id = el.get_attribute("id") or el.get_attribute("name")
-                info_text = el.get_attribute("title") or el.get_attribute("data-tooltip") or el.text
-                
-                if not v_id or len(v_id) < 3: continue # דילוג על אלמנטים לא רלוונטיים
+                # חילוץ מזהה רכב - אם אין ID, נשתמש בטקסט או במיקום
+                v_id = el.get_attribute("id") or el.get_attribute("title")
+                if not v_id or len(v_id) < 2: continue
 
-                status = get_pto_status(info_text)
+                # לקיחת כל המידע הגולמי לטובת ה"מלשינון"
+                raw_info = el.get_attribute("title") or el.text or "No Info"
+                
+                # זיהוי סטטוס PTO
+                status = "CLOSED"
+                if any(word in raw_info for word in ["פתוח", "עבודה", "PTO", "פעיל"]):
+                    status = "OPEN"
                 
                 current_scan[v_id] = {
                     "status": status,
                     "last_seen": datetime.datetime.now().isoformat(),
-                    "debug_info": info_text[:50] # לשמירה ב-Log
+                    "debug_info": raw_info[:100] # המלשינון יציג לנו את זה
                 }
             except: continue
 
         if current_scan:
-            # עדכון ה-JSON (וודא שפונקציית update_local_db קיימת בקובץ)
+            # עדכון הקובץ (שימוש בפונקציה הקיימת אצלך)
             update_local_db(current_scan)
-            print(f"✅ הצלחנו! עודכנו {len(current_scan)} רכבים.")
+            print(f"✅ הצלחה! עודכנו {len(current_scan)} רכבים ב-JSON.")
         else:
-            print("❌ עדיין לא נמצאו נתונים. מצלם מסך לניתוח...")
-            driver.save_screenshot("debug_map_empty.png")
+            print("❌ הכשל נמשך: לא נמצאו רכבים גם בחיפוש רחב. שומר צילום מסך.")
+            driver.save_screenshot("kשל_מפה.png")
 
     except Exception as e:
         print(f"⚠️ שגיאה: {str(e)}")
