@@ -1,17 +1,54 @@
-- name: Save and Commit Data
+name: Ituran_Monitor
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # הרצה אוטומטית כל 5 דקות
+  workflow_dispatch:      # מאפשר הרצה ידנית בלחיצת כפתור
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    # שלב קריטי: מתן הרשאות כתיבה לבוט כדי שיוכל לעדכן את ה-JSON
+    permissions:
+      contents: write
+      
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # מושך את כל ההיסטוריה כדי למנוע בעיות ב-Push
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          pip install selenium webdriver-manager python-dotenv
+          
+      - name: Run Scraper
+        env:
+          ITURAN_USER: ${{ secrets.ITURAN_USER }}
+          ITURAN_PASS: ${{ secrets.ITURAN_PASS }}
+        run: python scraper.py
+        
+      - name: Save and Commit Data
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # משיכת שינויים אחרונים כדי למנוע התנגשות
+          # סינכרון עם השרת לפני הדחיפה כדי למנוע שגיאת Rejected
           git pull origin main --rebase
           
           git add fleet_db.json
-          # בדיקה אם יש בכלל מה לעדכן
+          
+          # בדיקה אם הקובץ באמת השתנה - אם לא, לא מבצעים קומיט
           if git diff --quiet && git diff --staged --quiet; then
-            echo "No changes to commit"
+            echo "No changes in fleet_db.json"
           else
             git commit -m "Update fleet data [skip ci]"
             git push origin main
