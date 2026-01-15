@@ -18,7 +18,7 @@ def get_pto_status(tooltip_text):
 
 def run_scraper():
     chrome_options = Options()
-    chrome_options.add_argument("--headless") # ריצה ללא מסך (חובה ל-GitHub)
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
@@ -26,49 +26,48 @@ def run_scraper():
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        print("--- שלב 1: ניסיון גישה לכתובת המעודכנת ---")
-        # הכתובת הרשמית והנכונה
+        # פתרון שגיאת ה-DNS: שימוש בכתובת הרשמית והתקינה
+        print("--- שלב 1: ניסיון גישה לאתר איתורן ---")
         driver.get("https://www.ituran.com/iweb2/iweb2p.aspx") 
         
         wait = WebDriverWait(driver, 30)
         
-        # שלב 2: איתור שדות הכניסה לפי המבנה המדויק של איתורן
-        print("Waiting for login fields...")
-        user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
-        pass_input = driver.find_element(By.ID, "txtPassword")
-        
-        # משיכת פרטים מה-Secrets (תומך בשני השמות שהגדרנו)
+        # שלב 2: בדיקת פרטי התחברות מה-Secrets
         user_val = os.getenv('USER') or os.getenv('ITURAN_USER')
         pass_val = os.getenv('PASS') or os.getenv('ITURAN_PASS')
         
         if not user_val or not pass_val:
-            print("ERROR: Missing login credentials in Secrets!")
+            print(f"ERROR: Missing Credentials! USER found: {bool(user_val)}, PASS found: {bool(pass_val)}")
             return
 
+        # איתור שדות והזנת נתונים
+        print("Locating login fields...")
+        user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
+        pass_input = driver.find_element(By.ID, "txtPassword")
+        
         user_input.send_keys(user_val)
         pass_input.send_keys(pass_val)
         
-        # לחיצה על כפתור הכניסה לפי ה-ID באתר
+        # לחיצה על כפתור כניסה
         login_btn = driver.find_element(By.ID, "btnLogin")
         login_btn.click()
-        print("Login clicked. Waiting for dashboard...")
+        print("Login clicked. Waiting for dashboard to load...")
 
-        # המתנה לטעינת המפה והטבלה
+        # המתנה לטעינת נתונים
         time.sleep(20) 
         
-        # סריקת הרכבים בטבלה (מבוסס על ה-Class שראינו בתמונה)
+        # סריקת רכבים לפי ה-Class שזיהינו בתמונה
         elements = driver.find_elements(By.CLASS_NAME, "StatOnMap")
-        print(f"Found {len(elements)} vehicle status elements.")
+        print(f"Found {len(elements)} vehicle elements.")
 
         current_data = {}
         for el in elements:
             try:
-                # חילוץ ID וסטטוס מה-Tooltip
-                raw_id = el.get_attribute("id").split('-')[0]
+                v_id = el.get_attribute("id").split('-')[0]
                 tooltip = el.get_attribute("data_tooltip")
                 status = get_pto_status(tooltip)
                 
-                current_data[raw_id] = {
+                current_data[v_id] = {
                     "status": status,
                     "last_seen": datetime.datetime.now().isoformat(),
                     "info": tooltip
@@ -79,19 +78,17 @@ def run_scraper():
             update_local_db(current_data)
             print("--- שלב 3: נתונים נשמרו בהצלחה ---")
         else:
-            print("Warning: No vehicle data found after login. Check if page loaded correctly.")
+            print("Warning: Dashboard loaded but no vehicles found.")
 
     except Exception as e:
-        print(f"FAILED: {str(e)}")
-        # צילום מסך במידה ויש שגיאה (עוזר לדיבאגינג)
-        driver.save_screenshot("error_page.png")
+        print(f"FAILED with error: {str(e)}")
+        driver.save_screenshot("error_screenshot.png")
         raise e
     finally:
         driver.quit()
 
 def update_local_db(new_scan):
     db_file = 'fleet_db.json'
-    # יצירת קובץ במידה ולא קיים
     if not os.path.exists(db_file):
         db = {"vehicles": {}}
     else:
@@ -107,15 +104,14 @@ def update_local_db(new_scan):
         
         prev_status = db['vehicles'][vid]["current_status"]
         
-        # לוגיקת זיהוי אירועי PTO
+        # זיהוי אירועי פתיחה/סגירה
         if info['status'] == "OPEN" and prev_status != "OPEN":
-            db['vehicles'][vid]["history"].append({"event": "PTO_OPENED", "time": info['last_seen']})
+            db['vehicles'][vid]["history"].append({"event": "STARTED", "time": info['last_seen']})
         elif info['status'] == "CLOSED" and prev_status == "OPEN":
-            db['vehicles'][vid]["history"].append({"event": "PTO_CLOSED", "time": info['last_seen']})
+            db['vehicles'][vid]["history"].append({"event": "ENDED", "time": info['last_seen']})
 
         db['vehicles'][vid]["current_status"] = info['status']
 
-    # שמירה חזרה לקובץ
     with open(db_file, 'w', encoding='utf-8') as f:
         json.dump(db, f, indent=4, ensure_ascii=False)
 
