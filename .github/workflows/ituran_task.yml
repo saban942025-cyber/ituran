@@ -1,33 +1,29 @@
-name: Ituran_Excel_Analyzer
+name: Excel_to_Timeline
 on:
   push:
     paths:
-      - '**.csv' # ירוץ בכל פעם שתעלה את דוח האקסל (כ-CSV)
+      - '**.csv'
   workflow_dispatch:
 
 jobs:
-  analyze:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v3
-      
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-          
-      - name: Install dependencies
+      - name: Install Pandas
         run: pip install pandas
-        
       - name: Run Analysis
-        run: python analyzer.py # הפעלת המוח שמנתח את האקסל
-        
-      - name: Commit and Push Results
+        run: python analyzer.py
+      - name: Push JSON
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add fleet_detailed.json
-          git commit -m "Update analytics from Excel [skip ci]" || echo "No changes"
+          git commit -m "Update timeline data" || echo "No changes"
           git push
