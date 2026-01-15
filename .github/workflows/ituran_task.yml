@@ -1,56 +1,33 @@
-name: Ituran_Monitor
-
+name: Ituran_Excel_Analyzer
 on:
-  schedule:
-    - cron: '*/5 * * * *' # הרצה אוטומטית כל 5 דקות
-  workflow_dispatch:      # מאפשר לך להריץ ידנית לבדיקה
+  push:
+    paths:
+      - '**.csv' # ירוץ בכל פעם שתעלה את דוח האקסל (כ-CSV)
+  workflow_dispatch:
 
 jobs:
-  scrape:
+  analyze:
     runs-on: ubuntu-latest
-    
-    # שלב קריטי: מתן הרשאות כתיבה לבוט
     permissions:
       contents: write
-      
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0 # מושך את כל ההיסטוריה כדי למנוע שגיאות Push
-
+      - uses: actions/checkout@v3
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
           
       - name: Install dependencies
-        run: |
-          pip install selenium webdriver-manager python-dotenv
-          
-      - name: Run Scraper
-        env:
-          ITURAN_USER: ${{ secrets.ITURAN_USER }}
-          ITURAN_PASS: ${{ secrets.ITURAN_PASS }}
-        run: python scraper.py
+        run: pip install pandas
         
-      - name: Save and Commit Data
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run Analysis
+        run: python analyzer.py # הפעלת המוח שמנתח את האקסל
+        
+      - name: Commit and Push Results
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          
-          # 1. סינכרון חכם: מושך את השינויים החדשים שעשית ושם את ה-JSON מעליהם
-          git pull origin main --rebase
-          
-          # 2. הוספת הקובץ המעודכן
-          git add fleet_db.json
-          
-          # 3. בדיקה אם יש בכלל מה לעדכן (כדי שלא יקרוס אם אין שינוי)
-          if git diff --quiet && git diff --staged --quiet; then
-            echo "No changes in fleet_db.json"
-          else
-            git commit -m "Update fleet data [skip ci]"
-            git push origin main
-          fi
+          git add fleet_detailed.json
+          git commit -m "Update analytics from Excel [skip ci]" || echo "No changes"
+          git push
