@@ -1,35 +1,42 @@
 import os
 import time
+import json
+import datetime
+from dotenv import load_dotenv # ספרייה חדשה
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+# טעינת המשתנים מקובץ .env
+load_dotenv()
+
 def run_scraper():
+    # --- בדיקת תקינות משתני סביבה ---
+    user = os.getenv('ITURAN_USER')
+    password = os.getenv('ITURAN_PASS')
+    
+    if not user or not password:
+        print("❌ שגיאה: משתני הסביבה ITURAN_USER או ITURAN_PASS חסרים בקובץ .env!")
+        return # עוצר את הריצה
+
+    print(f"✅ משתנים נטענו בהצלחה (משתמש: {user})")
+
     chrome_options = Options()
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
     
     driver = webdriver.Chrome(options=chrome_options)
+    wait = WebDriverWait(driver, 30)
     
     try:
-        # בדיקה קריטית אם ה-Secrets הגיעו
-        user = os.getenv('ITURAN_USER')
-        password = os.getenv('ITURAN_PASS')
-        
-        if not user or not password:
-            print(f"CRITICAL ERROR: Credentials are missing! User exists: {bool(user)}, Password exists: {bool(password)}")
-            return
-
-        print("Connecting to Ituran Official Login...")
+        print("🚀 מתחבר לדף הכניסה של איתורן...")
         driver.get("https://www.ituran.com/iweb2/login.aspx")
         
-        wait = WebDriverWait(driver, 40)
-        
-        # חיפוש שדה המשתמש
-        print("Waiting for txtUserName...")
+        # המתנה לשדות
         user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
         pass_input = driver.find_element(By.ID, "txtPassword")
         
@@ -37,14 +44,16 @@ def run_scraper():
         pass_input.send_keys(password)
         
         driver.find_element(By.ID, "btnLogin").click()
-        print("Login clicked! Checking dashboard...")
+        print("🔓 לחיצה על כפתור כניסה בוצעה. טוען דאשבורד...")
         
         time.sleep(20)
-        print("Success! Current URL:", driver.current_url)
-
+        print(f"📍 כתובת נוכחית: {driver.current_url}")
+        
+        # כאן תבוא הלוגיקה של איסוף הנתונים (PTO)
+        
     except Exception as e:
-        print(f"Error occurred: {str(e)}")
-        driver.save_screenshot("ituran_debug.png")
+        print(f"⚠️ שגיאה במהלך הריצה: {str(e)}")
+        driver.save_screenshot("debug_error.png")
     finally:
         driver.quit()
 
