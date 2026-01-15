@@ -25,7 +25,7 @@ def run_scraper():
     
     try:
         print("--- שלב 1: ניסיון גישה לאתר איתורן ---")
-        driver.get("https://fleet.ituran.com") 
+        driver.get("https://www.ituran.com/iweb2/login.aspx") 
         
         wait = WebDriverWait(driver, 20)
         
