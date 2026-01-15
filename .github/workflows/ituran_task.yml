@@ -2,8 +2,8 @@ name: Ituran_Monitor
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # רץ כל 5 דקות
-  workflow_dispatch:
+    - cron: '*/5 * * * *' # ירוץ כל 5 דקות באופן אוטומטי
+  workflow_dispatch:      # מאפשר לך להריץ גם ידנית בלחיצת כפתור
 
 jobs:
   scrape:
@@ -27,10 +27,10 @@ jobs:
           PASS: ${{ secrets.ITURAN_PASS }}
         run: python scraper.py
 
-      - name: Save Data
+      - name: Save and Commit Data
         run: |
           git config --global user.name 'IturanBot'
           git config --global user.email 'bot@ituran.com'
           git add fleet_db.json
-          git commit -m "Update Fleet Status: $(date)" || exit 0
+          git commit -m "Update Fleet Data: $(date)" || exit 0
           git push
