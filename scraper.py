@@ -8,6 +8,14 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+def get_pto_status(text):
+    if not text: return "IDLE"
+    # חיזוק מילות המפתח - כל מה שיכול להעיד על עבודה
+    keywords = ["פתוח", "עבודה", "PTO", "פעיל", "מנוף", "ON"]
+    if any(word in text for word in keywords):
+        return "OPEN"
+    return "CLOSED"
+
 def run_scraper():
     user = os.getenv('ITURAN_USER')
     password = os.getenv('ITURAN_PASS')
@@ -19,53 +27,57 @@ def run_scraper():
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        print("🚀 מתחבר לאיתורן...")
+        print("🚀 מתחבר למערכת...")
         driver.get("https://www.ituran.com/iweb2/login.aspx")
         
-        # לוגין (כבר עובד אצלך)
+        # לוגין
         wait = WebDriverWait(driver, 30)
         wait.until(EC.presence_of_element_located((By.ID, "txtUserName"))).send_keys(user)
         driver.find_element(By.ID, "txtPassword").send_keys(password)
         driver.find_element(By.ID, "btnLogin").click()
         
-        print("🔓 לחיצה בוצעה, ממתין לטעינה מלאה (60 שניות)...")
-        time.sleep(60) # זמן אקסטרה לטעינה כבדה
+        print("🔓 לחיצה בוצעה. ממתין 60 שניות לטעינה מלאה של כל הרכבים...")
+        time.sleep(60) 
 
-        # חיפוש רכבים בשיטה רחבה (מחפש כל DIV שיש לו ID שמכיל מספר רכב)
-        # איתורן משתמשת בדרך כלל ב-Class 'StatOnMap' או 'v-marker'
-        potential_elements = driver.find_elements(By.CSS_SELECTOR, "div[class*='Stat'], div[id*='veh']")
-        print(f"🔍 נמצאו {len(potential_elements)} אלמנטים פוטנציאליים על המפה.")
-
+        # --- החיזוק: חיפוש רב-שכבתי ---
         current_scan = {}
-        for el in potential_elements:
+        
+        # 1. חיפוש לפי קלאסים נפוצים באיתורן
+        elements = driver.find_elements(By.CSS_SERVER, ".StatOnMap, .v-marker, [id*='veh'], [class*='vehicle']")
+        
+        # 2. אם לא מצא, ננסה "לגרד" את כל ה-Divים שיש להם טקסט
+        if not elements:
+            print("🔍 מנסה שיטת סריקה עמוקה...")
+            elements = driver.find_elements(By.XPATH, "//div[@title] | //div[@data-tooltip]")
+
+        print(f"🔎 נמצאו {len(elements)} אלמנטים חשודים כרכבים.")
+
+        for el in elements:
             try:
-                v_id = el.get_attribute("id")
-                # מנסה למצוא טקסט בכל מקום אפשרי (title, alt, text)
-                info = el.get_attribute("title") or el.text or el.get_attribute("outerHTML")
+                # חילוץ מידע מכל מקום אפשרי באלמנט
+                v_id = el.get_attribute("id") or el.get_attribute("name")
+                info_text = el.get_attribute("title") or el.get_attribute("data-tooltip") or el.text
                 
-                status = "CLOSED"
-                if "פתוח" in info or "עבודה" in info or "PTO" in info:
-                    status = "OPEN"
+                if not v_id or len(v_id) < 3: continue # דילוג על אלמנטים לא רלוונטיים
+
+                status = get_pto_status(info_text)
                 
-                if v_id:
-                    current_scan[v_id] = {
-                        "status": status,
-                        "last_seen": datetime.datetime.now().isoformat(),
-                        "info": info[:100] # שומר רק התחלה של הטקסט לדיבאג
-                    }
+                current_scan[v_id] = {
+                    "status": status,
+                    "last_seen": datetime.datetime.now().isoformat(),
+                    "debug_info": info_text[:50] # לשמירה ב-Log
+                }
             except: continue
 
         if current_scan:
-            # כאן אנחנו משתמשים בפונקציה שכתבנו לעדכון ה-JSON
+            # עדכון ה-JSON (וודא שפונקציית update_local_db קיימת בקובץ)
             update_local_db(current_scan)
-            print(f"💾 הצלחנו! נשמרו {len(current_scan)} רכבים.")
+            print(f"✅ הצלחנו! עודכנו {len(current_scan)} רכבים.")
         else:
-            print("❌ לא נמצאו נתונים. מצלם מסך לבדיקה.")
-            driver.save_screenshot("debug_map.png")
+            print("❌ עדיין לא נמצאו נתונים. מצלם מסך לניתוח...")
+            driver.save_screenshot("debug_map_empty.png")
 
     except Exception as e:
         print(f"⚠️ שגיאה: {str(e)}")
     finally:
         driver.quit()
-
-# וודא שפונקציית update_local_db קיימת אצלך בקוד (כפי שכתבנו קודם)
