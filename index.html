@@ -2,67 +2,74 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>דוח צי רכב - איתורן כלכלי</title>
+    <title>מלשינון איתורן - איתור כשלים</title>
     <style>
-        body { font-family: sans-serif; background: #f4f7f6; margin: 20px; text-align: center; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: center; }
-        th { background: #34495e; color: white; }
-        .status-open { color: #27ae60; font-weight: bold; }
-        .status-closed { color: #c0392b; font-weight: bold; }
-        .update-time { font-size: 0.8em; color: #7f8c8d; }
+        body { font-family: sans-serif; background: #f0f2f5; margin: 20px; text-align: center; }
+        .debug-panel { background: #fff; padding: 20px; border-radius: 8px; border: 2px solid #e74c3c; margin-bottom: 20px; }
+        .success-panel { border-color: #27ae60; }
+        .log-box { background: #222; color: #0f0; padding: 10px; text-align: left; direction: ltr; font-family: monospace; border-radius: 5px; height: 150px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 10px; border: 1px solid #ddd; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>📊 דוח פעילות מנופים (PTO)</h1>
-        <div id="last-update" class="update-time">טוען נתונים...</div>
-        <table id="fleet-table">
-            <thead>
-                <tr>
-                    <th>מזהה רכב</th>
-                    <th>סטטוס נוכחי</th>
-                    <th>פעילות אחרונה</th>
-                    <th>סיכום היסטורי</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+    <h1>🕵️ מלשינון איתורן - איתור נקודות כשל</h1>
+    
+    <div id="status-box" class="debug-panel">
+        <h2 id="status-title">בדיקת תקינות נתונים...</h2>
+        <div id="debug-log" class="log-box"></div>
     </div>
 
-    <script>
-        async function loadFleetData() {
-            try {
-                // משיכת הקובץ שהסקריפט מעדכן
-                const response = await fetch('fleet_db.json');
-                const data = await response.json();
-                const tbody = document.querySelector('#fleet-table tbody');
-                tbody.innerHTML = '';
+    <table>
+        <thead>
+            <tr>
+                <th>רכב</th>
+                <th>סטטוס</th>
+                <th>מידע גולמי (Debug)</th>
+            </tr>
+        </thead>
+        <tbody id="data-table"></tbody>
+    </table>
 
-                for (const [id, vehicle] of Object.entries(data.vehicles)) {
-                    const row = document.createElement('tr');
-                    const statusClass = vehicle.current_status === 'OPEN' ? 'status-open' : 'status-closed';
-                    const statusText = vehicle.current_status === 'OPEN' ? '🟢 פתוח (עבודה)' : '🔴 סגור';
-                    
-                    row.innerHTML = `
-                        <td><strong>${id}</strong></td>
-                        <td class="${statusClass}">${statusText}</td>
-                        <td>${new Date(vehicle.last_update).toLocaleString('he-IL')}</td>
-                        <td>${vehicle.history.length} אירועים נרשמו</td>
-                    `;
-                    tbody.appendChild(row);
+    <script>
+        function addLog(msg) {
+            const log = document.getElementById('debug-log');
+            log.innerHTML += `> ${new Date().toLocaleTimeString()}: ${msg}<br>`;
+        }
+
+        async function inspectData() {
+            addLog("מתחיל משיכת נתונים מ-fleet_db.json...");
+            try {
+                const res = await fetch('fleet_db.json');
+                if (!res.ok) throw new Error("קובץ ה-JSON לא נמצא בשרת");
+                
+                const data = await res.json();
+                const vehicles = Object.entries(data.vehicles || {});
+                
+                if (vehicles.length === 0) {
+                    addLog("⚠️ כשל: הקובץ קיים אך רשימת הרכבים ריקה.");
+                    document.getElementById('status-title').innerText = "❌ הכשל: הבוט לא זיהה רכבים במפה";
+                } else {
+                    addLog(`✅ הצלחה: נמצאו ${vehicles.length} רכבים.`);
+                    document.getElementById('status-box').classList.add('success-panel');
+                    document.getElementById('status-title').innerText = "✅ נתונים זורמים תקין";
                 }
-                document.getElementById('last-update').innerText = 'עודכן לאחרונה: ' + new Date().toLocaleString('he-IL');
-            } catch (e) {
-                console.error("Error loading JSON:", e);
+
+                const tbody = document.getElementById('data-table');
+                tbody.innerHTML = vehicles.map(([id, v]) => `
+                    <tr>
+                        <td>${id}</td>
+                        <td>${v.current_status}</td>
+                        <td><small>${v.debug_info || 'אין מידע'}</small></td>
+                    </tr>
+                `).join('');
+
+            } catch (err) {
+                addLog(`❌ שגיאה קריטית: ${err.message}`);
+                document.getElementById('status-title').innerText = "❌ הכשל: בעיית גישה לקובץ הנתונים";
             }
         }
-        loadFleetData();
-        // רענון אוטומטי כל דקה
-        setInterval(loadFleetData, 60000);
+        inspectData();
     </script>
 </body>
 </html>
