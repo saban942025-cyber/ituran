@@ -2,74 +2,95 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>מלשינון איתורן - איתור כשלים</title>
+    <title>דשבורד ניהול צי - איתורן כלכלי</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; margin: 20px; text-align: center; }
-        .debug-panel { background: #fff; padding: 20px; border-radius: 8px; border: 2px solid #e74c3c; margin-bottom: 20px; }
-        .success-panel { border-color: #27ae60; }
-        .log-box { background: #222; color: #0f0; padding: 10px; text-align: left; direction: ltr; font-family: monospace; border-radius: 5px; height: 150px; overflow-y: auto; }
-        table { width: 100%; border-collapse: collapse; background: white; }
-        th, td { padding: 10px; border: 1px solid #ddd; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #1a73e8; }
+        .efficiency-high { color: #27ae60; font-weight: bold; }
+        .efficiency-low { color: #e74c3c; font-weight: bold; }
     </style>
 </head>
 <body>
-    <h1>🕵️ מלשינון איתורן - איתור נקודות כשל</h1>
+    <h1>📊 ניתוח יעילות וזמני פעילות - דוח יומי</h1>
     
-    <div id="status-box" class="debug-panel">
-        <h2 id="status-title">בדיקת תקינות נתונים...</h2>
-        <div id="debug-log" class="log-box"></div>
+    <div class="grid">
+        <div class="card">
+            <h3>📈 שעות מנוע מול שעות מנוף (PTO)</h3>
+            <canvas id="hoursChart"></canvas>
+        </div>
+        <div class="card">
+            <h3>🏆 מדד יעילות נהגים (%)</h3>
+            <canvas id="efficiencyChart"></canvas>
+        </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>רכב</th>
-                <th>סטטוס</th>
-                <th>מידע גולמי (Debug)</th>
-            </tr>
-        </thead>
-        <tbody id="data-table"></tbody>
-    </table>
+    <div class="card" style="margin-top: 20px;">
+        <h3>📋 פירוט נתונים למחשב</h3>
+        <table style="width: 100%; border-collapse: collapse; text-align: right;">
+            <thead>
+                <tr style="border-bottom: 2px solid #ddd;">
+                    <th>נהג/רכב</th>
+                    <th>שעות מנוע</th>
+                    <th>שעות מנוף</th>
+                    <th>שעות נסיעה</th>
+                    <th>יעילות</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
 
     <script>
-        function addLog(msg) {
-            const log = document.getElementById('debug-log');
-            log.innerHTML += `> ${new Date().toLocaleTimeString()}: ${msg}<br>`;
-        }
+        async function loadData() {
+            // הנתונים מגיעים מהסקריפט שמנתח את ה-CSV
+            const response = await fetch('fleet_stats.json');
+            const data = await response.json();
+            
+            const labels = Object.keys(data);
+            const engineHours = labels.map(l => data[l].engine_hours);
+            const ptoHours = labels.map(l => data[l].pto_hours);
+            const efficiency = labels.map(l => data[l].efficiency_score);
 
-        async function inspectData() {
-            addLog("מתחיל משיכת נתונים מ-fleet_db.json...");
-            try {
-                const res = await fetch('fleet_db.json');
-                if (!res.ok) throw new Error("קובץ ה-JSON לא נמצא בשרת");
-                
-                const data = await res.json();
-                const vehicles = Object.entries(data.vehicles || {});
-                
-                if (vehicles.length === 0) {
-                    addLog("⚠️ כשל: הקובץ קיים אך רשימת הרכבים ריקה.");
-                    document.getElementById('status-title').innerText = "❌ הכשל: הבוט לא זיהה רכבים במפה";
-                } else {
-                    addLog(`✅ הצלחה: נמצאו ${vehicles.length} רכבים.`);
-                    document.getElementById('status-box').classList.add('success-panel');
-                    document.getElementById('status-title').innerText = "✅ נתונים זורמים תקין";
+            // גרף שעות
+            new Chart(document.getElementById('hoursChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'שעות מנוע', data: engineHours, backgroundColor: '#3498db' },
+                        { label: 'שעות מנוף', data: ptoHours, backgroundColor: '#2ecc71' }
+                    ]
                 }
+            });
 
-                const tbody = document.getElementById('data-table');
-                tbody.innerHTML = vehicles.map(([id, v]) => `
-                    <tr>
-                        <td>${id}</td>
-                        <td>${v.current_status}</td>
-                        <td><small>${v.debug_info || 'אין מידע'}</small></td>
+            // גרף יעילות
+            new Chart(document.getElementById('efficiencyChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{ label: 'ציון יעילות %', data: efficiency, borderColor: '#f1c40f', fill: true }]
+                }
+            });
+
+            // מילוי טבלה
+            const tbody = document.getElementById('tableBody');
+            labels.forEach(l => {
+                const scoreClass = data[l].efficiency_score > 10 ? 'efficiency-high' : 'efficiency-low';
+                tbody.innerHTML += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td>${l}</td>
+                        <td>${data[l].engine_hours}</td>
+                        <td>${data[l].pto_hours}</td>
+                        <td>${data[l].driving_hours}</td>
+                        <td class="${scoreClass}">${data[l].efficiency_score}%</td>
                     </tr>
-                `).join('');
-
-            } catch (err) {
-                addLog(`❌ שגיאה קריטית: ${err.message}`);
-                document.getElementById('status-title').innerText = "❌ הכשל: בעיית גישה לקובץ הנתונים";
-            }
+                `;
+            });
         }
-        inspectData();
+        loadData();
     </script>
 </body>
 </html>
