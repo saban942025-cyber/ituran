@@ -15,21 +15,21 @@ def run_scraper():
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        # בדיקה אם הנתונים הגיעו מה-Secrets
+        # בדיקה קריטית אם ה-Secrets הגיעו
         user = os.getenv('ITURAN_USER')
         password = os.getenv('ITURAN_PASS')
         
         if not user or not password:
-            print(f"ERROR: Credentials missing! User: {bool(user)}, Pass: {bool(password)}")
+            print(f"CRITICAL ERROR: Credentials are missing! User exists: {bool(user)}, Password exists: {bool(password)}")
             return
 
-        print("Starting... Accessing Ituran")
+        print("Connecting to Ituran Official Login...")
         driver.get("https://www.ituran.com/iweb2/login.aspx")
         
-        wait = WebDriverWait(driver, 30)
+        wait = WebDriverWait(driver, 40)
         
-        # מחפש את השדה - אם הוא בפריים, הוא יחכה לו
-        print("Waiting for login fields...")
+        # חיפוש שדה המשתמש
+        print("Waiting for txtUserName...")
         user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
         pass_input = driver.find_element(By.ID, "txtPassword")
         
@@ -37,14 +37,14 @@ def run_scraper():
         pass_input.send_keys(password)
         
         driver.find_element(By.ID, "btnLogin").click()
-        print("Login clicked successfully!")
+        print("Login clicked! Checking dashboard...")
         
-        time.sleep(10)
-        print("Inside! Current URL:", driver.current_url)
+        time.sleep(20)
+        print("Success! Current URL:", driver.current_url)
 
     except Exception as e:
         print(f"Error occurred: {str(e)}")
-        driver.save_screenshot("debug.png")
+        driver.save_screenshot("ituran_debug.png")
     finally:
         driver.quit()
 
