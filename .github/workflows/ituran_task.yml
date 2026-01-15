@@ -1,0 +1,36 @@
+name: Ituran_Monitor
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # רץ כל 5 דקות
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install selenium webdriver-manager
+
+      - name: Run Scraper
+        env:
+          USER: ${{ secrets.ITURAN_USER }}
+          PASS: ${{ secrets.ITURAN_PASS }}
+        run: python scraper.py
+
+      - name: Save Data
+        run: |
+          git config --global user.name 'IturanBot'
+          git config --global user.email 'bot@ituran.com'
+          git add fleet_db.json
+          git commit -m "Update Fleet Status: $(date)" || exit 0
+          git push
