@@ -1,29 +1,41 @@
 name: Ituran_Monitor
+
 on:
   schedule:
-    - cron: '*/5 * * * *' # רץ כל 5 דקות
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    # הוספת הרשאות כתיבה מפורשות
+    permissions:
+      contents: write
+      
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
+          
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install selenium webdriver-manager python-dotenv
+          
       - name: Run Scraper
         env:
           ITURAN_USER: ${{ secrets.ITURAN_USER }}
           ITURAN_PASS: ${{ secrets.ITURAN_PASS }}
         run: python scraper.py
+        
       - name: Save and Commit Data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add fleet_db.json
-          git commit -m "Update fleet data" || echo "No changes to commit"
-          git push
+          # התניה: בצע קומיט רק אם הקובץ באמת השתנה
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update fleet data [skip ci]" && git push)
