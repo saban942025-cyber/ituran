@@ -26,34 +26,33 @@ def run_scraper():
     driver = webdriver.Chrome(options=chrome_options)
     
     try:
-        print("--- שלב 1: ניסיון גישה לכתובת המאומתת ---")
-        # הכתובת המדויקת שמצאת ב-Network Tab
+        print("--- שלב 1: גישה לכתובת המאומתת ---")
+        # שימוש בכתובת שחילצנו מהקונסולה
         driver.get("https://www.ituran.com/iweb2/login.aspx") 
         
         wait = WebDriverWait(driver, 30)
         
+        # שלב 2: כניסה למערכת עם ה-IDs הנכונים
         print("Locating login fields...")
-        # באיתורן iweb2 השדות הם txtUserName ו-txtPassword
         user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
         pass_input = driver.find_element(By.ID, "txtPassword")
         
-        # שימוש ב-Secrets מה-GitHub
-        user_val = os.getenv('USER') or os.getenv('ITURAN_USER')
-        pass_val = os.getenv('PASS') or os.getenv('ITURAN_PASS')
+        # משיכת נתונים מה-Secrets
+        user_val = os.getenv('USER')
+        pass_val = os.getenv('PASS')
         
         if not user_val or not pass_val:
-            print(f"ERROR: Credentials missing! User: {bool(user_val)}, Pass: {bool(pass_val)}")
+            print(f"ERROR: Missing Credentials! USER: {bool(user_val)}, PASS: {bool(pass_val)}")
             return
 
         user_input.send_keys(user_val)
         pass_input.send_keys(pass_val)
         
-        # כפתור הכניסה הרשמי
         login_btn = driver.find_element(By.ID, "btnLogin")
         login_btn.click()
         print("Login clicked. Waiting for dashboard...")
 
-        # המתנה לטעינת ה-PeleGrid והאייקונים של ה-PTO
+        # המתנה לטעינת נתונים
         time.sleep(25) 
         
         elements = driver.find_elements(By.CLASS_NAME, "StatOnMap")
@@ -75,13 +74,10 @@ def run_scraper():
 
         if current_data:
             update_local_db(current_data)
-            print("--- שלב 3: נתונים עודכנו ב-fleet_db.json ---")
-        else:
-            print("Warning: No vehicle elements found. Check page load.")
+            print("--- שלב 3: הצלחה! נתונים נשמרו ---")
 
     except Exception as e:
-        print(f"CRITICAL ERROR: {str(e)}")
-        driver.save_screenshot("debug_error.png")
+        print(f"FAILED: {str(e)}")
         raise e
     finally:
         driver.quit()
