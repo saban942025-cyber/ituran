@@ -23,8 +23,8 @@ jobs:
 
       - name: Run Scraper
         env:
-          USER: ${{ secrets.ITURAN_USER }}
-          PASS: ${{ secrets.ITURAN_PASS }}
+          USER: ${{ secrets.ITURAN1_USER }}
+          PASS: ${{ secrets.RAMI_PASS }}
         run: python scraper.py
 
       - name: Save and Commit Data
