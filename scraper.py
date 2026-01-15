@@ -2,46 +2,11 @@ import os
 import time
 import json
 import datetime
-from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-load_dotenv()
-
-def get_pto_status(tooltip_text):
-    if not tooltip_text: return "IDLE"
-    # חיפוש מילות מפתח בתוך הטקסט של איתורן
-    if "פתוח" in tooltip_text or "עבודה" in tooltip_text or "PTO" in tooltip_text:
-        return "OPEN"
-    return "CLOSED"
-
-def update_local_db(new_scan):
-    db_file = 'fleet_db.json'
-    if not os.path.exists(db_file):
-        db = {"vehicles": {}}
-    else:
-        with open(db_file, 'r', encoding='utf-8') as f:
-            try: db = json.load(f)
-            except: db = {"vehicles": {}}
-
-    for vid, info in new_scan.items():
-        if vid not in db['vehicles']:
-            db['vehicles'][vid] = {"current_status": "UNKNOWN", "history": []}
-        
-        prev_status = db['vehicles'][vid].get("current_status", "UNKNOWN")
-        if info['status'] == "OPEN" and prev_status != "OPEN":
-            db['vehicles'][vid]["history"].append({"event": "STARTED", "time": info['last_seen']})
-        elif info['status'] == "CLOSED" and prev_status == "OPEN":
-            db['vehicles'][vid]["history"].append({"event": "ENDED", "time": info['last_seen']})
-
-        db['vehicles'][vid]["current_status"] = info['status']
-        db['vehicles'][vid]["last_update"] = info['last_seen']
-
-    with open(db_file, 'w', encoding='utf-8') as f:
-        json.dump(db, f, indent=4, ensure_ascii=False)
 
 def run_scraper():
     user = os.getenv('ITURAN_USER')
@@ -49,70 +14,58 @@ def run_scraper():
     
     chrome_options = Options()
     chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
     
     driver = webdriver.Chrome(options=chrome_options)
-    wait = WebDriverWait(driver, 40)
     
     try:
-        print(f"🚀 מתחבר לאיתורן...")
+        print("🚀 מתחבר לאיתורן...")
         driver.get("https://www.ituran.com/iweb2/login.aspx")
         
-        # התחברות
-        user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
+        # לוגין (כבר עובד אצלך)
+        wait = WebDriverWait(driver, 30)
+        wait.until(EC.presence_of_element_located((By.ID, "txtUserName"))).send_keys(user)
         driver.find_element(By.ID, "txtPassword").send_keys(password)
-        user_input.send_keys(user)
         driver.find_element(By.ID, "btnLogin").click()
         
-        print("🔓 ממתין לטעינת המפה (45 שניות)...")
-        time.sleep(45) # זמן ארוך יותר לטעינת כל הצי
+        print("🔓 לחיצה בוצעה, ממתין לטעינה מלאה (60 שניות)...")
+        time.sleep(60) # זמן אקסטרה לטעינה כבדה
 
-        # ניסיון למצוא רכבים בתוך כל פריים אפשרי
-        found_vehicles = []
-        iframes = driver.find_elements(By.TAG_NAME, "iframe")
-        print(f"נמצאו {len(iframes)} פריימים בדף. סורק...")
-
-        # סריקת הדף הראשי
-        found_vehicles = driver.find_elements(By.CLASS_NAME, "StatOnMap")
-        
-        # אם לא מצא בדף הראשי, עובר על הפריימים
-        if not found_vehicles:
-            for index, iframe in enumerate(iframes):
-                driver.switch_to.default_content()
-                driver.switch_to.frame(index)
-                found_vehicles = driver.find_elements(By.CLASS_NAME, "StatOnMap")
-                if found_vehicles:
-                    print(f"✅ רכבים נמצאו בפריים מספר {index}")
-                    break
+        # חיפוש רכבים בשיטה רחבה (מחפש כל DIV שיש לו ID שמכיל מספר רכב)
+        # איתורן משתמשת בדרך כלל ב-Class 'StatOnMap' או 'v-marker'
+        potential_elements = driver.find_elements(By.CSS_SELECTOR, "div[class*='Stat'], div[id*='veh']")
+        print(f"🔍 נמצאו {len(potential_elements)} אלמנטים פוטנציאליים על המפה.")
 
         current_scan = {}
-        for el in found_vehicles:
+        for el in potential_elements:
             try:
-                v_id = el.get_attribute("id") or "unknown"
-                # איתורן לפעמים שומרת את המידע ב-title או ב-alt
-                tooltip = el.get_attribute("title") or el.get_attribute("data_tooltip") or ""
-                status = get_pto_status(tooltip)
+                v_id = el.get_attribute("id")
+                # מנסה למצוא טקסט בכל מקום אפשרי (title, alt, text)
+                info = el.get_attribute("title") or el.text or el.get_attribute("outerHTML")
                 
-                current_scan[v_id] = {
-                    "status": status,
-                    "last_seen": datetime.datetime.now().isoformat(),
-                    "info": tooltip
-                }
+                status = "CLOSED"
+                if "פתוח" in info or "עבודה" in info or "PTO" in info:
+                    status = "OPEN"
+                
+                if v_id:
+                    current_scan[v_id] = {
+                        "status": status,
+                        "last_seen": datetime.datetime.now().isoformat(),
+                        "info": info[:100] # שומר רק התחלה של הטקסט לדיבאג
+                    }
             except: continue
 
         if current_scan:
+            # כאן אנחנו משתמשים בפונקציה שכתבנו לעדכון ה-JSON
             update_local_db(current_scan)
-            print(f"💾 הצלחנו! נשמרו {len(current_scan)} רכבים ב-JSON.")
+            print(f"💾 הצלחנו! נשמרו {len(current_scan)} רכבים.")
         else:
-            print("❌ לא נמצאו רכבים על המפה. מצלם מסך לדיבאג.")
-            driver.save_screenshot("no_vehicles_debug.png")
-        
+            print("❌ לא נמצאו נתונים. מצלם מסך לבדיקה.")
+            driver.save_screenshot("debug_map.png")
+
     except Exception as e:
-        print(f"⚠️ תקלה: {str(e)}")
+        print(f"⚠️ שגיאה: {str(e)}")
     finally:
         driver.quit()
 
-if __name__ == "__main__":
-    run_scraper()
+# וודא שפונקציית update_local_db קיימת אצלך בקוד (כפי שכתבנו קודם)
