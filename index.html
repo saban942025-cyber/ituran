@@ -1,87 +1,75 @@
-import os
-import time
-import json
-import datetime
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
-def run_scraper():
-    user = os.getenv('ITURAN_USER')
-    password = os.getenv('ITURAN_PASS')
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>מלשינון איתורן - איתור כשלים</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; margin: 20px; text-align: center; }
+        .debug-panel { background: #fff; padding: 20px; border-radius: 8px; border: 2px solid #e74c3c; margin-bottom: 20px; }
+        .success-panel { border-color: #27ae60; }
+        .log-box { background: #222; color: #0f0; padding: 10px; text-align: left; direction: ltr; font-family: monospace; border-radius: 5px; height: 150px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 10px; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>🕵️ מלשינון איתורן - איתור נקודות כשל</h1>
     
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--window-size=1920,1080")
-    # הוספת User Agent כדי להיראות כמו דפדפן אמיתי ולא בוט
-    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
-    
-    driver = webdriver.Chrome(options=chrome_options)
-    
-    try:
-        print("🚀 מתחבר למערכת...")
-        driver.get("https://www.ituran.com/iweb2/login.aspx")
-        
-        wait = WebDriverWait(driver, 30)
-        # הזנת פרטים (כבר עובד)
-        wait.until(EC.presence_of_element_located((By.ID, "txtUserName"))).send_keys(user)
-        driver.find_element(By.ID, "txtPassword").send_keys(password)
-        driver.find_element(By.ID, "btnLogin").click()
-        
-        print("🔓 לחיצה בוצעה. ממתין 60 שניות לטעינת כל שכבות המפה...")
-        time.sleep(60) 
+    <div id="status-box" class="debug-panel">
+        <h2 id="status-title">בדיקת תקינות נתונים...</h2>
+        <div id="debug-log" class="log-box"></div>
+    </div>
 
-        # --- חיזוק: חיפוש רחב במיוחד ---
-        current_scan = {}
-        
-        # חיפוש כל אלמנט שיש לו ID שמתחיל ב-veh (נפוץ באיתורן) או Class של רכב
-        # אנחנו מחפשים גם בתוך iFrames במידה ויש
-        search_targets = [
-            "div.StatOnMap", 
-            "div[id*='veh']", 
-            "div[class*='vehicle']", 
-            "img[src*='vehicle']",
-            "div[title]" # כל דיב עם כותרת הוא חשוד
-        ]
-        
-        found_elements = []
-        for target in search_targets:
-            found_elements.extend(driver.find_elements(By.CSS_SELECTOR, target))
-        
-        print(f"🔎 נמצאו {len(found_elements)} אלמנטים חשודים כרכבים.")
+    <table>
+        <thead>
+            <tr>
+                <th>רכב</th>
+                <th>סטטוס</th>
+                <th>מידע גולמי (Debug)</th>
+            </tr>
+        </thead>
+        <tbody id="data-table"></tbody>
+    </table>
 
-        for el in found_elements:
-            try:
-                # חילוץ מזהה רכב - אם אין ID, נשתמש בטקסט או במיקום
-                v_id = el.get_attribute("id") or el.get_attribute("title")
-                if not v_id or len(v_id) < 2: continue
+    <script>
+        function addLog(msg) {
+            const log = document.getElementById('debug-log');
+            log.innerHTML += `> ${new Date().toLocaleTimeString()}: ${msg}<br>`;
+        }
 
-                # לקיחת כל המידע הגולמי לטובת ה"מלשינון"
-                raw_info = el.get_attribute("title") or el.text or "No Info"
+        async function inspectData() {
+            addLog("מתחיל משיכת נתונים מ-fleet_db.json...");
+            try {
+                const res = await fetch('fleet_db.json');
+                if (!res.ok) throw new Error("קובץ ה-JSON לא נמצא בשרת");
                 
-                # זיהוי סטטוס PTO
-                status = "CLOSED"
-                if any(word in raw_info for word in ["פתוח", "עבודה", "PTO", "פעיל"]):
-                    status = "OPEN"
+                const data = await res.json();
+                const vehicles = Object.entries(data.vehicles || {});
                 
-                current_scan[v_id] = {
-                    "status": status,
-                    "last_seen": datetime.datetime.now().isoformat(),
-                    "debug_info": raw_info[:100] # המלשינון יציג לנו את זה
+                if (vehicles.length === 0) {
+                    addLog("⚠️ כשל: הקובץ קיים אך רשימת הרכבים ריקה.");
+                    document.getElementById('status-title').innerText = "❌ הכשל: הבוט לא זיהה רכבים במפה";
+                } else {
+                    addLog(`✅ הצלחה: נמצאו ${vehicles.length} רכבים.`);
+                    document.getElementById('status-box').classList.add('success-panel');
+                    document.getElementById('status-title').innerText = "✅ נתונים זורמים תקין";
                 }
-            except: continue
 
-        if current_scan:
-            # עדכון הקובץ (שימוש בפונקציה הקיימת אצלך)
-            update_local_db(current_scan)
-            print(f"✅ הצלחה! עודכנו {len(current_scan)} רכבים ב-JSON.")
-        else:
-            print("❌ הכשל נמשך: לא נמצאו רכבים גם בחיפוש רחב. שומר צילום מסך.")
-            driver.save_screenshot("kשל_מפה.png")
+                const tbody = document.getElementById('data-table');
+                tbody.innerHTML = vehicles.map(([id, v]) => `
+                    <tr>
+                        <td>${id}</td>
+                        <td>${v.current_status}</td>
+                        <td><small>${v.debug_info || 'אין מידע'}</small></td>
+                    </tr>
+                `).join('');
 
-    except Exception as e:
-        print(f"⚠️ שגיאה: {str(e)}")
-    finally:
-        driver.quit()
+            } catch (err) {
+                addLog(`❌ שגיאה קריטית: ${err.message}`);
+                document.getElementById('status-title').innerText = "❌ הכשל: בעיית גישה לקובץ הנתונים";
+            }
+        }
+        inspectData();
+    </script>
+</body>
+</html>
