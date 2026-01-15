@@ -20,50 +20,46 @@ def run_scraper():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--window-size=1920,1080")
-    
-    # הוספת User-Agent כדי להיראות כמו דפדפן אמיתי ולמנוע חסימות
+    # התחזות לדפדפן רגיל כדי למנוע חסימות
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
     
     driver = webdriver.Chrome(options=chrome_options)
-    
+    wait = WebDriverWait(driver, 45) # הגדלת זמן המתנה ל-45 שניות
+
     try:
-        print("Starting... Accessing Ituran Official Page")
+        print("Starting... Accessing Ituran Official Login")
         driver.get("https://www.ituran.com/iweb2/login.aspx")
         
-        wait = WebDriverWait(driver, 45) # הגדלנו את זמן ההמתנה ל-45 שניות
+        # שלב 1: טיפול ב-iFrames (קריטי באיתוראן)
+        time.sleep(5)
+        if len(driver.find_elements(By.TAG_NAME, "iframe")) > 0:
+            print("Iframe detected, switching context...")
+            driver.switch_to.frame(0)
 
-        # שלב בדיקת iFrame - אם השדות נמצאים בתוך חלון פנימי
-        frames = driver.find_elements(By.TAG_NAME, "iframe")
-        if frames:
-            print(f"Detected {len(frames)} iframes. Switching context...")
-            driver.switch_to.frame(0) # מעבר ל-iFrame הראשון
-
-        print("Waiting for txtUserName...")
+        # שלב 2: איתור שדות גמיש
+        print("Waiting for login fields...")
         try:
-            # ניסיון גמיש למצוא את שדה המשתמש
             user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
         except:
-            print("Trying alternative: looking for any text input...")
+            print("ID not found, trying CSS selector...")
             user_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
-
-        pass_input = driver.find_element(By.CSS_SELECTOR, "input[type='password'], #txtPassword")
+            
+        pass_input = driver.find_element(By.CSS_SELECTOR, "input[type='password']")
         
-        user_val = os.getenv('USER') or os.getenv('ITURAN_USER')
-        pass_val = os.getenv('PASS') or os.getenv('ITURAN_PASS')
+        # שימוש ב-Secrets
+        user_input.send_keys(os.environ.get('USER') or os.environ.get('ITURAN_USER'))
+        pass_input.send_keys(os.environ.get('PASS') or os.environ.get('ITURAN_PASS'))
         
-        user_input.send_keys(user_val)
-        pass_input.send_keys(pass_val)
-        
-        # לחיצה על כפתור הכניסה
         login_btn = driver.find_element(By.CSS_SELECTOR, "#btnLogin, input[type='submit']")
         login_btn.click()
-        print("Login button clicked. Waiting for dashboard...")
+        print("Login clicked, waiting for dashboard...")
 
-        # המתנה ארוכה לטעינת הדאשבורד
+        # שלב 3: המתנה לטעינת הנתונים
         time.sleep(25)
-        
+        driver.switch_to.default_content() # חזרה מה-iFrame אם נכנסנו
+
         elements = driver.find_elements(By.CLASS_NAME, "StatOnMap")
-        print(f"Found {len(elements)} vehicles.")
+        print(f"Found {len(elements)} vehicle elements.")
 
         current_data = {}
         for el in elements:
@@ -80,14 +76,11 @@ def run_scraper():
 
         if current_data:
             update_local_db(current_data)
-            print("Successfully updated database.")
-        else:
-            print("Warning: Logged in but no vehicle elements found.")
+            print("Database updated successfully.")
 
     except Exception as e:
-        print(f"Error during run: {str(e)}")
-        # שמירת צילום מסך כדי שנראה בדיוק מה הבוט ראה
-        driver.save_screenshot("debug_view.png")
+        print(f"Error occurred: {str(e)}")
+        driver.save_screenshot("debug_error.png") # שמירת צילום מסך לניתוח
         raise e
     finally:
         driver.quit()
@@ -105,10 +98,10 @@ def update_local_db(new_scan):
         if vid not in db['vehicles']:
             db['vehicles'][vid] = {"current_status": "UNKNOWN", "history": []}
         
-        prev_status = db['vehicles'][vid]["current_status"]
-        if info['status'] == "OPEN" and prev_status != "OPEN":
+        prev = db['vehicles'][vid]["current_status"]
+        if info['status'] == "OPEN" and prev != "OPEN":
             db['vehicles'][vid]["history"].append({"event": "STARTED", "time": info['last_seen']})
-        elif info['status'] == "CLOSED" and prev_status == "OPEN":
+        elif info['status'] == "CLOSED" and prev == "OPEN":
             db['vehicles'][vid]["history"].append({"event": "ENDED", "time": info['last_seen']})
         db['vehicles'][vid]["current_status"] = info['status']
 
