@@ -1,54 +1,29 @@
-import os
-import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+name: Ituran_Monitor
+on:
+  schedule:
+    - cron: '*/5 * * * *' # רץ כל 5 דקות
+  workflow_dispatch:
 
-def run_scraper():
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920,1080")
-    
-    driver = webdriver.Chrome(options=chrome_options)
-    wait = WebDriverWait(driver, 30)
-    
-    try:
-        # 1. בדיקת שלמות הנתונים - כאן הבעיה שלך!
-        user = os.getenv('ITURAN_USER')
-        password = os.getenv('ITURAN_PASS')
-        
-        if not user or not password:
-            print(f"CRITICAL ERROR: Missing Secrets! User: {bool(user)}, Pass: {bool(password)}")
-            return
-
-        print("Connecting to Ituran Official Login...")
-        driver.get("https://www.ituran.com/iweb2/login.aspx")
-        
-        # 2. המתנה לשדות
-        print("Waiting for login fields...")
-        user_input = wait.until(EC.presence_of_element_located((By.ID, "txtUserName")))
-        pass_input = driver.find_element(By.ID, "txtPassword")
-        
-        user_input.send_keys(user)
-        pass_input.send_keys(password)
-        
-        # 3. לחיצה
-        driver.find_element(By.ID, "btnLogin").click()
-        print("Login clicked! Loading dashboard...")
-        
-        time.sleep(20)
-        print("Inside! Current URL:", driver.current_url)
-
-    except Exception as e:
-        print(f"Error occurred: {str(e)}")
-        driver.save_screenshot("debug_error.png")
-        raise e
-    finally:
-        driver.quit()
-
-if __name__ == "__main__":
-    run_scraper()
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run Scraper
+        env:
+          ITURAN_USER: ${{ secrets.ITURAN_USER }}
+          ITURAN_PASS: ${{ secrets.ITURAN_PASS }}
+        run: python scraper.py
+      - name: Save and Commit Data
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add fleet_db.json
+          git commit -m "Update fleet data" || echo "No changes to commit"
+          git push
