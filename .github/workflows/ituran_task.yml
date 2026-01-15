@@ -3,13 +3,13 @@ name: Ituran_Monitor
 on:
   schedule:
     - cron: '*/5 * * * *' # הרצה אוטומטית כל 5 דקות
-  workflow_dispatch:      # מאפשר הרצה ידנית בלחיצת כפתור
+  workflow_dispatch:      # מאפשר לך להריץ ידנית לבדיקה
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     
-    # שלב קריטי: מתן הרשאות כתיבה לבוט כדי שיוכל לעדכן את ה-JSON
+    # שלב קריטי: מתן הרשאות כתיבה לבוט
     permissions:
       contents: write
       
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # מושך את כל ההיסטוריה כדי למנוע בעיות ב-Push
+          fetch-depth: 0 # מושך את כל ההיסטוריה כדי למנוע שגיאות Push
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -41,12 +41,13 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # סינכרון עם השרת לפני הדחיפה כדי למנוע שגיאת Rejected
+          # 1. סינכרון חכם: מושך את השינויים החדשים שעשית ושם את ה-JSON מעליהם
           git pull origin main --rebase
           
+          # 2. הוספת הקובץ המעודכן
           git add fleet_db.json
           
-          # בדיקה אם הקובץ באמת השתנה - אם לא, לא מבצעים קומיט
+          # 3. בדיקה אם יש בכלל מה לעדכן (כדי שלא יקרוס אם אין שינוי)
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes in fleet_db.json"
           else
