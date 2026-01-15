@@ -2,95 +2,56 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>דשבורד ניהול צי - איתורן כלכלי</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>ציר זמן פעילות צי - איתורן</title>
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" />
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #1a73e8; }
-        .efficiency-high { color: #27ae60; font-weight: bold; }
-        .efficiency-low { color: #e74c3c; font-weight: bold; }
+        body { font-family: sans-serif; padding: 20px; background: #f4f7f6; }
+        .vis-item.נסיעה { background-color: #3498db; color: white; border-color: #2980b9; }
+        .vis-item.מנוף { background-color: #27ae60; color: white; border-color: #2ecc71; }
+        .vis-item.סרק { background-color: #e74c3c; color: white; border-color: #c0392b; }
+        .container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
-    <h1>📊 ניתוח יעילות וזמני פעילות - דוח יומי</h1>
-    
-    <div class="grid">
-        <div class="card">
-            <h3>📈 שעות מנוע מול שעות מנוף (PTO)</h3>
-            <canvas id="hoursChart"></canvas>
-        </div>
-        <div class="card">
-            <h3>🏆 מדד יעילות נהגים (%)</h3>
-            <canvas id="efficiencyChart"></canvas>
-        </div>
-    </div>
-
-    <div class="card" style="margin-top: 20px;">
-        <h3>📋 פירוט נתונים למחשב</h3>
-        <table style="width: 100%; border-collapse: collapse; text-align: right;">
-            <thead>
-                <tr style="border-bottom: 2px solid #ddd;">
-                    <th>נהג/רכב</th>
-                    <th>שעות מנוע</th>
-                    <th>שעות מנוף</th>
-                    <th>שעות נסיעה</th>
-                    <th>יעילות</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody"></tbody>
-        </table>
+    <div class="container">
+        <h1>🕒 ציר זמן פעילות יומי - לפי נהגים</h1>
+        <div id="visualization"></div>
     </div>
 
     <script>
-        async function loadData() {
-            // הנתונים מגיעים מהסקריפט שמנתח את ה-CSV
-            const response = await fetch('fleet_stats.json');
+        async function loadTimeline() {
+            const response = await fetch('fleet_detailed.json');
             const data = await response.json();
             
-            const labels = Object.keys(data);
-            const engineHours = labels.map(l => data[l].engine_hours);
-            const ptoHours = labels.map(l => data[l].pto_hours);
-            const efficiency = labels.map(l => data[l].efficiency_score);
+            const items = new vis.DataSet();
+            const groups = new vis.DataSet();
+            
+            let groupId = 1;
+            for (const [driver, content] of Object.entries(data)) {
+                groups.add({id: groupId, content: driver});
+                
+                content.timeline.forEach((event, index) => {
+                    if (event.start && event.end) {
+                        items.add({
+                            id: `${groupId}-${index}`,
+                            group: groupId,
+                            start: event.start,
+                            end: event.end,
+                            content: event.type,
+                            className: event.type,
+                            title: `כתובת: ${event.addr}` // מופיע בריחופ עכבר
+                        });
+                    }
+                });
+                groupId++;
+            }
 
-            // גרף שעות
-            new Chart(document.getElementById('hoursChart'), {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        { label: 'שעות מנוע', data: engineHours, backgroundColor: '#3498db' },
-                        { label: 'שעות מנוף', data: ptoHours, backgroundColor: '#2ecc71' }
-                    ]
-                }
-            });
-
-            // גרף יעילות
-            new Chart(document.getElementById('efficiencyChart'), {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{ label: 'ציון יעילות %', data: efficiency, borderColor: '#f1c40f', fill: true }]
-                }
-            });
-
-            // מילוי טבלה
-            const tbody = document.getElementById('tableBody');
-            labels.forEach(l => {
-                const scoreClass = data[l].efficiency_score > 10 ? 'efficiency-high' : 'efficiency-low';
-                tbody.innerHTML += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td>${l}</td>
-                        <td>${data[l].engine_hours}</td>
-                        <td>${data[l].pto_hours}</td>
-                        <td>${data[l].driving_hours}</td>
-                        <td class="${scoreClass}">${data[l].efficiency_score}%</td>
-                    </tr>
-                `;
-            });
+            const container = document.getElementById('visualization');
+            const options = { stack: true, orientation: 'top', rtl: true };
+            new vis.Timeline(container, items, groups, options);
         }
-        loadData();
+        loadTimeline();
     </script>
 </body>
 </html>
