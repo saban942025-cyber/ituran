@@ -1,65 +1,61 @@
 'use client';
 import React, { useState } from 'react';
-import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function FileUploader() {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setStatus('loading');
+    setLoading(true);
+    setStatus(null);
+
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await fetch('/api/upload', { method: 'POST', body: formData });
+      const result = await response.json();
 
-      if (res.ok) {
-        setStatus('success');
-        setTimeout(() => setStatus('idle'), 3000); // איפוס לאחר הצלחה
+      if (response.ok) {
+        setStatus({ type: 'success', msg: `הקובץ עובד! ${result.count} שורות עודכנו.` });
       } else {
-        setStatus('error');
+        throw new Error(result.error || 'שגיאה בעיבוד');
       }
-    } catch (err) {
-      setStatus('error');
+    } catch (err: any) {
+      setStatus({ type: 'error', msg: err.message });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-10 border-2 border-dashed border-slate-700 rounded-3xl bg-slate-900/50 hover:border-blue-500 transition-all text-center">
-      <input type="file" id="ituran-file" className="hidden" onChange={handleUpload} accept=".csv,.xlsx" />
-      <label htmlFor="ituran-file" className="cursor-pointer flex flex-col items-center">
-        {status === 'idle' && (
-          <>
-            <Upload size={50} className="text-blue-400 mb-4" />
-            <h3 className="text-xl font-bold text-white">העלה דוח איתורן חדש</h3>
-            <p className="text-slate-400 mt-2">גרור לכאן את קובץ האקסל או לחץ לבחירה</p>
-          </>
-        )}
-        {status === 'loading' && (
-          <div className="flex flex-col items-center">
-            <Loader2 size={50} className="text-blue-400 animate-spin mb-4" />
-            <p className="text-blue-400 font-bold">מעבד נתונים ומנתח יעילות...</p>
-          </div>
-        )}
-        {status === 'success' && (
-          <div className="flex flex-col items-center">
-            <CheckCircle size={50} className="text-green-500 mb-4" />
-            <p className="text-green-400 font-bold">הדוח עובד בהצלחה! הנתונים עודכנו.</p>
-          </div>
-        )}
-        {status === 'error' && (
-          <div className="flex flex-col items-center">
-            <AlertCircle size={50} className="text-red-500 mb-4" />
-            <p className="text-red-400 font-bold">שגיאה בעיבוד הקובץ. וודא שזהו פורמט איתורן תקין.</p>
-          </div>
-        )}
+    <div className="p-10 border-2 border-dashed border-sky-500/30 rounded-2xl bg-slate-800/50 backdrop-blur-sm text-center">
+      <div className="mb-4">
+        <svg className="mx-auto h-12 w-12 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        </svg>
+      </div>
+      <h3 className="text-2xl font-bold mb-2 text-white">ייבוא נתונים מאיתורן</h3>
+      <p className="text-slate-400 mb-6">גרור לכאן את קובץ האקסל או לחץ על הכפתור</p>
+      
+      <input type="file" id="ituran-file" className="hidden" onChange={handleUpload} accept=".xlsx, .xls" />
+      
+      <label htmlFor="ituran-file" className={`cursor-pointer inline-flex items-center px-8 py-3 rounded-full font-bold text-white transition-all transform hover:scale-105 ${
+          loading ? 'bg-slate-600 animate-pulse' : 'bg-gradient-to-r from-sky-600 to-blue-700 shadow-lg shadow-sky-900/20'
+        }`}>
+        {loading ? 'מנתח נתונים...' : 'בחירת קובץ Excel'}
       </label>
+
+      {status && (
+        <div className={`mt-6 p-4 rounded-xl text-sm font-medium ${
+          status.type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'
+        }`}>
+          {status.msg}
+        </div>
+      )}
     </div>
   );
 }
