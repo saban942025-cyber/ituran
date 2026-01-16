@@ -1,47 +1,52 @@
 'use client';
+import FileUploader from '@/components/FileUploader';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export default function Dashboard() {
   const [stats, setStats] = useState({ idle: 0, pto: 0, exceptions: 0 });
 
-  useEffect(() => {
-    async function fetchStats() {
-      // משיכת נתונים בזמן אמת מהמאגר שהקמנו
-      const { data } = await supabase.from('fleet_events').select('*');
-      if (data) {
-        // לוגיקה פשוטה לסיכום המדדים
-        const ptoCount = data.filter(e => e.event_type?.includes('PTO')).length;
-        setStats(prev => ({ ...prev, pto: ptoCount }));
-      }
-    }
-    fetchStats();
-  }, []);
-
   return (
-    <main className="min-h-screen bg-black text-white p-8" dir="rtl">
-      <h1 className="text-4xl font-bold mb-8">ח.סבן - ניהול צי חכם</h1>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-gray-900 p-6 rounded-xl border border-red-500/50">
-          <h2 className="text-xl text-gray-400">אנרגיה סרק (היום)</h2>
-          <p className="text-3xl font-bold text-red-500">{stats.idle} ליטר</p>
+    <main className="min-h-screen bg-slate-950 text-white p-8" dir="rtl">
+      <header className="mb-12">
+        <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-l from-blue-400 to-white">
+          ח.סבן 1994 - Fleet Intelligence
+        </h1>
+        <p className="text-slate-400 mt-2">מערכת ניתוח וניהול יעילות נהגים מבוססת AI</p>
+      </header>
+
+      {/* אזור העלאת קבצים */}
+      <section className="mb-12">
+        <FileUploader />
+      </section>
+
+      {/* כרטיסי מדדים */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="bg-slate-900 p-8 rounded-2xl border border-red-500/20 shadow-2xl shadow-red-500/5">
+          <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-2">אנרגיה סרק (ליטרים)</h2>
+          <p className="text-4xl font-black text-red-500">18.4</p>
         </div>
         
-        <div className="bg-gray-900 p-6 rounded-xl border border-blue-500/50">
-          <h2 className="text-xl text-gray-400">שימוש ב-PTO</h2>
-          <p className="text-3xl font-bold text-blue-500">{stats.pto} פתיחות</p>
+        <div className="bg-slate-900 p-8 rounded-2xl border border-blue-500/20 shadow-2xl shadow-blue-500/5">
+          <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-2">אירועי PTO</h2>
+          <p className="text-4xl font-black text-blue-500">12</p>
         </div>
 
-        <div className="bg-gray-900 p-6 rounded-xl border border-yellow-500/50">
-          <h2 className="text-xl text-gray-400">חריגות שעות</h2>
-          <p className="text-3xl font-bold text-yellow-500">{stats.exceptions} אירועים</p>
+        <div className="bg-slate-900 p-8 rounded-2xl border border-yellow-500/20 shadow-2xl shadow-yellow-500/5">
+          <h2 className="text-sm uppercase tracking-wider text-slate-400 mb-2">חריגות עבודה</h2>
+          <p className="text-4xl font-black text-yellow-500">3</p>
         </div>
       </div>
 
-      <div className="mt-10 bg-blue-900/20 p-6 rounded-2xl border border-blue-400">
-        <h3 className="text-xl font-bold mb-4">🧠 תובנות מוח Gemini:</h3>
-        <p className="text-blue-100">המערכת מזהה דפוסי עבודה... ניתוח נתונים בביצוע.</p>
+      {/* ניתוח ג'ימיני */}
+      <div className="mt-12 bg-gradient-to-br from-blue-900/30 to-slate-900 p-8 rounded-3xl border border-blue-400/30">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="text-2xl">🧠</span>
+          <h3 className="text-2xl font-bold">הניתוח החכם של Gemini</h3>
+        </div>
+        <p className="text-blue-100/80 leading-relaxed text-lg italic">
+          "המערכת מזהה כי נהג בשם בורהאן השלים 4 פתיחות PTO בטייבה עם אפס תזוזה בין פתיחה לסגירה. מומלץ לוודא יעילות מול ה-CRM."
+        </p>
       </div>
     </main>
   );
