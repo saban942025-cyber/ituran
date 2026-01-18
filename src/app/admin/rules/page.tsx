@@ -26,17 +26,18 @@ export default function RulesPage() {
       <div className="bg-white rounded-[30px] shadow-xl p-6 border-t-8 border-blue-600">
         <h1 className="text-xl font-bold text-blue-900 mb-4">🧠 הגדרות המוח - ח.סבן</h1>
         <div className="space-y-3 mb-6">
-          <input className="w-full p-3 rounded-xl border" placeholder="שם פריט (למשל: טיט שק גדול)" 
+          <input className="w-full p-3 rounded-xl border text-right" placeholder="שם פריט (למשל: טיט שק גדול)" 
                  value={newRule.item} onChange={e => setNewRule({...newRule, item: e.target.value})} />
-          <input className="w-full p-3 rounded-xl border" placeholder="חיוב חובה (למשל: פיקדון בלה)" 
+          <input className="w-full p-3 rounded-xl border text-right" placeholder="חיוב חובה (למשל: פיקדון בלה)" 
                  value={newRule.required} onChange={e => setNewRule({...newRule, required: e.target.value})} />
-          <button onClick={handleAdd} className="w-full bg-blue-600 text-white p-3 rounded-xl font-bold">שמור חוק</button>
+          <button onClick={handleAdd} className="w-full bg-blue-600 text-white p-3 rounded-xl font-bold">שמור חוק בזיכרון 💾</button>
         </div>
         <div className="space-y-2">
           {rules.map(rule => (
-            <div key={rule.id} className="flex justify-between p-3 bg-gray-50 rounded-lg border">
-              <span>{rule.item} ⬅️ {rule.required}</span>
-              <button onClick={async () => { await deleteDoc(doc(db, "business_rules", rule.id)); fetchRules(); }} className="text-red-500 text-xs">מחק</button>
+            <div key={rule.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border">
+              <span className="text-sm">{rule.item} ⬅️ {rule.required}</span>
+              <button onClick={async () => { await deleteDoc(doc(db, "business_rules", rule.id)); fetchRules(); }} 
+                      className="text-red-500 text-xs font-bold">מחק</button>
             </div>
           ))}
         </div>
