@@ -1,107 +1,22 @@
-<!DOCTYPE html>
-<html lang="he" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <title>ציר זמן פעילות צי - ח.סבן</title>
-    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
-    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background: #0f172a; color: white; }
-        .container { background: #1e293b; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #334155; }
-        h1 { color: #38bdf8; text-align: center; margin-bottom: 30px; }
-        /* צבעים לפי סוגי אירועים */
-        .vis-item.PTO_OPEN { background-color: #22c55e; color: white; border-color: #16a34a; } /* מנוף/PTO */
-        .vis-item.IDLE { background-color: #ef4444; color: white; border-color: #dc2626; }    /* סרק */
-        .vis-item.OFF_HOURS { background-color: #eab308; color: white; border-color: #ca8a04; } /* שעות חריגות */
-        .vis-panel.vis-left, .vis-label { color: white !important; background: #1e293b !important; border-color: #334155 !important; }
-        .vis-time-axis .vis-text { color: #94a3b8 !important; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🕒 ניתוח פעילות נהגים בזמן אמת</h1>
-        <div id="visualization"></div>
-    </div>
+<script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+
 <script>
-    // 1. הגדרות החיבור - השתמש בשמות משתנים שלא יתנגשו
-    const SB_URL = 'https://dmdqfjivkmxrudwzwnao.supabase.co';
-    const SB_KEY = 'sb_publishable_IbPB09lRqMLdSsoqb4bE4A_3e-98erS'; // שים כאן את המפתח הארוך
+  const firebaseConfig = {
+    apiKey: "AIzaSyAXb3Of5uay1-hR9Z7WGyNwzSuUaqa4OvU",
+    authDomain: "ituran-9722e.firebaseapp.com",
+    databaseURL: "https://ituran-9722e-default-rtdb.firebaseio.com/",
+    projectId: "ituran-9722e",
+    appId: "1:18206679990:web:dc47046a30428152101717"
+  };
 
-    // יצירת הלקוח - שים לב שאנחנו משתמשים ב-global supabase מהספריה שהוספנו ב-head
-    // אם הספריה מגדירה משתנה בשם 'supabase', נשתמש בשם אחר עבור ה-client שלנו
-    const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
 
-    async function loadTimeline() {
-        try {
-            console.log("מתחיל למשוך נתונים מ-Supabase...");
-            
-            // 2. משיכת הנתונים מהטבלה fleet_events
-            const { data, error } = await supabaseClient
-                .from('fleet_events')
-                .select('*')
-                .order('event_timestamp', { ascending: true });
-
-            if (error) throw error;
-            if (!data || data.length === 0) {
-                console.warn("לא נמצאו נתונים בטבלה");
-                return;
-            }
-
-            const items = new vis.DataSet();
-            const groups = new vis.DataSet();
-            const driverMap = new Map();
-            let groupIdCounter = 1;
-
-            // 3. עיבוד הנתונים לציר הזמן
-            data.forEach((event, index) => {
-                if (!driverMap.has(event.driver_name)) {
-                    driverMap.set(event.driver_name, groupIdCounter);
-                    groups.add({ id: groupIdCounter, content: event.driver_name });
-                    groupIdCounter++;
-                }
-
-                const driverGroupId = driverMap.get(event.driver_name);
-                const startTime = new Date(event.event_timestamp);
-                // הגדרת סיום פיקטיבי לטובת התצוגה (15 דקות)
-                const endTime = new Date(startTime.getTime() + 15 * 60000); 
-
-                items.add({
-                    id: event.id || `evt-${index}`,
-                    group: driverGroupId,
-                    start: startTime,
-                    end: endTime,
-                    content: event.event_type ? event.event_type.replace('_', ' ') : 'אירוע',
-                    className: event.event_type,
-                    title: `מיקום: ${event.location || 'לא ידוע'}`
-                });
-            });
-
-            // 4. הגדרות התצוגה
-            const container = document.getElementById('visualization');
-            const options = {
-                stack: true,
-                orientation: 'top',
-                rtl: true,
-                margin: { item: 10, axis: 5 }
-            };
-
-            new vis.Timeline(container, items, groups, options);
-            console.log("ציר הזמן נטען בהצלחה!");
-
-        } catch (err) {
-            console.error("שגיאה קריטית:", err);
-            document.getElementById('visualization').innerHTML = 
-                `<div style="color: #ef4444; padding: 20px; text-align: center; border: 1px solid red; border-radius: 10px;">
-                    שגיאה בטעינת הנתונים: ${err.message}<br>
-                    ודא שהגדרת את המפתח הארוך (Anon Key) נכון בקוד.
-                </div>`;
-        }
-    }
-
-    // הפעלה
-    loadTimeline();
+  // משיכת נתונים ורינדור ציר זמן
+  database.ref('fleet_history').on('value', (snapshot) => {
+    const data = snapshot.val();
+    console.log("נתוני אמת מ-Firebase:", data);
+    // כאן נכנס הקוד של vis.Timeline שנתתי לך קודם
+  });
 </script>
-</body>
-</html>
