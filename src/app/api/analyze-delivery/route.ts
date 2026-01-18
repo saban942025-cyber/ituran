@@ -3,6 +3,9 @@ import { analyzeIturanCSV } from '@/lib/ituran-parser';
 import { analyzePDFWithGemini } from '@/lib/gemini';
 
 export async function POST(req: Request) {
+  // הלוגיקה שתחבר את ה-CSV של איתורן עם ה-PDF של התעודות
+  return NextResponse.json({ status: 'success' });
+}
   try {
     const { csvContent, pdfBuffer } = await req.json();
     const ituranData = await analyzeIturanCSV(csvContent);
