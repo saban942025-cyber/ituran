@@ -2,116 +2,174 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>מערכת ניתוח נהגים - איתורן</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת ניתוח נהגים - איתורן פרימיום</title>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
     <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
     <style>
-        :root { --ituran-blue: #0056b3; --success: #28a745; --danger: #dc3545; }
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
-        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .upload-area { border: 2px dashed var(--ituran-blue); text-align: center; padding: 40px; cursor: pointer; transition: 0.3s; }
-        .upload-area:hover { background: #eef4ff; }
-        .driver-btn { padding: 12px 24px; border: 2px solid var(--ituran-blue); background: white; color: var(--ituran-blue); border-radius: 25px; cursor: pointer; font-weight: bold; transition: 0.2s; margin: 5px; }
-        .driver-btn.active { background: var(--ituran-blue); color: white; }
-        header { background: var(--ituran-blue); color: white; padding: 15px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; }
-        #timeline-container { height: 400px; margin-top: 20px; }
+        :root { --ituran-blue: #0056b3; --success: #28a745; --danger: #dc3545; --warning: #ffc107; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f7f9; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        
+        /* עיצוב כפתורי נהגים */
+        .driver-btn { 
+            padding: 12px 25px; border: 2px solid var(--ituran-blue); background: white; 
+            color: var(--ituran-blue); border-radius: 30px; cursor: pointer; 
+            font-weight: bold; margin: 5px; transition: 0.3s;
+        }
+        .driver-btn:hover { background: #eef4ff; }
+        .driver-btn.active { background: var(--ituran-blue); color: white; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+
+        /* צבעים לציר הזמן */
         .vis-item.מנוף { background-color: var(--success); border-color: #1e7e34; color: white; }
         .vis-item.נסיעה { background-color: #007bff; border-color: #0056b3; color: white; }
         .vis-item.סרק { background-color: var(--danger); border-color: #bd2130; color: white; }
+        
+        header { background: var(--ituran-blue); color: white; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .upload-box { border: 2px dashed #ccc; padding: 40px; text-align: center; border-radius: 12px; cursor: pointer; background: white; }
+        .upload-box:hover { border-color: var(--ituran-blue); background: #f9fbff; }
     </style>
 </head>
 <body>
 
-<div class="card" style="padding:0;">
+<div class="container">
     <header>
-        <span><i class="fas fa-satellite"></i> ניתוח דוחות איתורן - ח.סבן</span>
-        <span id="status-text">ממתין להעלאת CSV</span>
+        <div><i class="fas fa-truck-monster"></i> <strong>ניתוח פעילות נהגים - ח.סבן</strong></div>
+        <div id="file-status">ממתין לקובץ...</div>
     </header>
-    <div class="upload-area" onclick="document.getElementById('csvInput').click()">
-        <i class="fas fa-file-csv" style="font-size: 50px; color: var(--ituran-blue); margin-bottom: 15px;"></i>
-        <h3>גרור דוח איתורן לכאן או לחץ לבחירה</h3>
+
+    <div class="upload-box" onclick="document.getElementById('csvInput').click()">
+        <i class="fas fa-cloud-upload-alt" style="font-size: 50px; color: var(--ituran-blue);"></i>
+        <h3>גרור דוח איתורן (CSV) לכאן</h3>
+        <p>או לחץ לבחירת קובץ מהמחשב</p>
         <input type="file" id="csvInput" accept=".csv" style="display: none;">
+    </div>
+
+    <div id="driver-selector" class="card" style="display: none; text-align: center;">
+        <h3>בחר נהג לניתוח פעילות:</h3>
+        <div id="driver-btns-container"></div>
+    </div>
+
+    <div id="analysis-card" class="card" style="display: none;">
+        <h2 id="selected-driver-title"></h2>
+        <div id="timeline-viz"></div>
+        <div id="summary-stats" style="display: flex; justify-content: space-around; margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+            <div id="stat-pto" style="color: var(--success); font-weight: bold;"></div>
+            <div id="stat-drive" style="color: #007bff; font-weight: bold;"></div>
+            <div id="stat-idle" style="color: var(--danger); font-weight: bold;"></div>
+        </div>
     </div>
 </div>
 
-<div id="driver-list" class="card" style="display:none; text-align:center;">
-    <h3>בחר נהג לניתוח פעילות:</h3>
-    <div id="buttons-container"></div>
-</div>
-
-<div id="analysis-section" class="card" style="display:none;">
-    <h2 id="current-driver-title" style="color: var(--ituran-blue);"></h2>
-    <div id="timeline-container"></div>
-</div>
 <script>
-    function processData(text) {
+    let fleetData = {};
+    let activeTimeline = null;
+
+    // 1. קליטת הקובץ עם פענוח עברית
+    document.getElementById('csvInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            // פענוח Windows-1255 למניעת ג'יבריש
+            const decoder = new TextDecoder('windows-1255');
+            const csvText = decoder.decode(event.target.result);
+            parseIturanCSV(csvText);
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    // 2. מנוע ניתוח הנתונים
+    function parseIturanCSV(text) {
         const lines = text.split('\n');
         fleetData = {};
         
         for (let i = 7; i < lines.length; i++) {
-            // טיפול חכם בשורות עם פסיקים בתוך גרשיים (כתובות)
-            const cols = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-            if (!cols || cols.length < 9) continue;
+            // חילוץ עמודות תוך התעלמות מפסיקים בתוך גרשיים (כתובות)
+            const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            if (!row || row.length < 9) continue;
 
-            const timeStr = cols[0].replace(/"/g, '').trim();
-            const driverName = cols[1].replace(/"/g, '').trim(); 
-            const address = cols[6] ? cols[6].replace(/"/g, '').trim() : "";
-            const status = cols[8] ? cols[8].replace(/"/g, '').replace(/\./g, '').trim() : "";
+            const time = row[0].replace(/"/g, '').trim();
+            const driver = row[1].replace(/"/g, '').trim();
+            const addr = row[6] ? row[6].replace(/"/g, '').trim() : "מיקום לא ידוע";
+            const status = row[8] ? row[8].replace(/"/g, '').replace(/\./g, '').trim() : "";
 
-            if (!driverName || driverName === "תג זיהוי" || driverName === "-") continue;
+            if (!driver || driver === "-" || driver === "תג זיהוי") continue;
 
-            if (!fleetData[driverName]) {
-                fleetData[driverName] = [];
-            }
+            if (!fleetData[driver]) fleetData[driver] = [];
 
-            // חיפוש מילות מפתח בסטטוס
-            const isPTO = status.includes('PTO') || status.includes('מנוף');
-            const isDrive = status.includes('תנועה') || (status.includes('מונע') && !status.includes('עומד'));
-            const isIdle = status.includes('עומד מונע') || status.includes('סרק');
+            // זיהוי סוג האירוע
+            let type = "";
+            if (status.includes('PTO') || status.includes('מנוף')) type = "מנוף";
+            else if (status.includes('תנועה')) type = "נסיעה";
+            else if (status.includes('מונע')) type = "סרק";
 
-            if (isPTO || isDrive || isIdle) {
-                fleetData[driverName].push({
-                    start: moment(timeStr, "DD/MM/YYYY HH:mm:ss").toDate(),
+            if (type) {
+                fleetData[driver].push({
+                    start: moment(time, "DD/MM/YYYY HH:mm:ss").toDate(),
                     content: status,
-                    className: isPTO ? 'מנוף' : isDrive ? 'נסיעה' : 'סרק',
-                    title: `מיקום: ${address}`
+                    className: type,
+                    title: `מיקום: ${addr}`,
+                    type_key: type
                 });
             }
         }
-        
-        if (Object.keys(fleetData).length === 0) {
-            alert("הקובץ נקרא אבל לא נמצאו אירועי פעילות (PTO/נסיעה). בדוק את תוכן הקובץ.");
-        }
-        
-        showDriverSelection();
+        renderButtons();
     }
 
-    function renderTimeline(driver, btn) {
+    // 3. הצגת כפתורי הנהגים
+    function renderButtons() {
+        const container = document.getElementById('driver-btns-container');
+        container.innerHTML = '';
+        document.getElementById('driver-selector').style.display = 'block';
+        document.getElementById('file-status').innerText = "הדוח נטען בהצלחה";
+
+        Object.keys(fleetData).forEach(driver => {
+            const btn = document.createElement('button');
+            btn.className = 'driver-btn';
+            btn.innerText = driver;
+            btn.onclick = () => showTimeline(driver, btn);
+            container.appendChild(btn);
+        });
+    }
+
+    // 4. הצגת ציר זמן וסטטיסטיקה לנהג נבחר
+    function showTimeline(driver, btn) {
         document.querySelectorAll('.driver-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        document.getElementById('analysis-section').style.display = 'block';
-        document.getElementById('current-driver-title').innerText = `דוח פעילות מפורט: ${driver}`;
+        document.getElementById('analysis-card').style.display = 'block';
+        document.getElementById('selected-driver-title').innerText = `ניתוח פעילות: ${driver}`;
 
-        const container = document.getElementById('timeline-container');
+        // רינדור ציר זמן
+        const container = document.getElementById('timeline-viz');
         container.innerHTML = '';
-
-        // מיון הנתונים לפי זמן כדי למנוע קפיצות בגרף
-        const sortedData = fleetData[driver].sort((a, b) => a.start - b.start);
+        const items = new vis.DataSet(fleetData[driver].sort((a,b) => a.start - b.start));
         
-        const items = new vis.DataSet(sortedData);
         const options = {
             rtl: true,
-            stack: false, // שינוי ל-false כדי לראות אירועים חופפים (כמו מנוף בזמן שהמנוע דולק)
+            stack: false, // מאפשר לראות חפיפה בין מנוף למנוע
             orientation: 'top',
-            margin: { item: 10 },
-            showCurrentTime: false
+            margin: { item: 15 }
         };
 
         if (activeTimeline) activeTimeline.destroy();
         activeTimeline = new vis.Timeline(container, items, options);
+
+        // חישוב סיכומים
+        const ptoCount = fleetData[driver].filter(e => e.type_key === "מנוף").length;
+        const driveCount = fleetData[driver].filter(e => e.type_key === "נסיעה").length;
+        const idleCount = fleetData[driver].filter(e => e.type_key === "סרק").length;
+
+        document.getElementById('stat-pto').innerHTML = `<i class="fas fa-hammer"></i> מנוף: ${ptoCount} אירועים`;
+        document.getElementById('stat-drive').innerHTML = `<i class="fas fa-route"></i> נסיעה: ${driveCount} אירועים`;
+        document.getElementById('stat-idle').innerHTML = `<i class="fas fa-clock"></i> סרק: ${idleCount} אירועים`;
     }
 </script>
 
