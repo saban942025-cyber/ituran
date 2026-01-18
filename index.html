@@ -1,75 +1,114 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <link rel="manifest" href="manifest.json">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-    <title>Ituran App</title>
+    <title>Saban Ituran App</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <style>
-        /* עיצוב אפליקציה */
-        body { margin: 0; padding-bottom: 70px; background: #f0f2f5; font-family: sans-serif; }
-        .app-header { background: #0056b3; color: white; padding: 20px; text-align: center; font-weight: bold; position: sticky; top: 0; z-index: 100; }
-        .status-card { background: white; margin: 10px; border-radius: 15px; padding: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .anomaly-badge { background: #ff4d4d; color: white; padding: 5px 10px; border-radius: 20px; font-size: 12px; float: left; }
-        .driver-btn { width: 100%; padding: 15px; margin-bottom: 10px; border-radius: 10px; border: none; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); display: flex; justify-content: space-between; font-weight: bold; }
-        .driver-btn:active { background: #e6f0ff; }
+        :root { --blue: #0056b3; --danger: #ff4d4d; --success: #28a745; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #f0f2f5; margin: 0; padding-bottom: 80px; }
+        .header { background: var(--blue); color: white; padding: 20px; text-align: center; font-weight: bold; font-size: 20px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .upload-card { background: white; margin: 15px; padding: 20px; border-radius: 15px; border: 2px dashed var(--blue); text-align: center; }
+        .driver-card { background: white; margin: 10px; padding: 15px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-right: 5px solid #ccc; }
+        .driver-card.has-pto { border-right-color: var(--success); }
+        .driver-card.has-idle { border-right-color: var(--danger); }
+        .info { display: flex; flex-direction: column; gap: 5px; }
+        .name { font-weight: bold; font-size: 18px; color: var(--blue); }
+        .stats { font-size: 14px; color: #666; }
+        .badge { padding: 4px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; color: white; }
+        .badge-pto { background: var(--success); }
+        .badge-idle { background: var(--danger); }
         .nav-bar { position: fixed; bottom: 0; width: 100%; background: white; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; }
     </style>
 </head>
 <body>
 
-<div class="app-header">מערכת ניהול צי - ח.סבן</div>
+<div class="header">צי רכב ח.סבן - מוח מנתח</div>
 
-<div class="status-card">
-    <h3>📤 העלאת דוח יומי</h3>
-    <input type="file" id="appUpload" accept=".csv" style="width: 100%;">
+<div class="upload-card">
+    <label for="csv-file" style="cursor: pointer;">
+        <i style="font-size: 30px;">📂</i><br>
+        <strong>לחץ להעלאת דוח יומי (CSV)</strong>
+    </label>
+    <input type="file" id="csv-file" accept=".csv" style="display: none;">
 </div>
 
-<div id="driver-list" style="padding: 10px;">
-    </div>
+<div id="app-content">
+    <div style="text-align: center; color: #999; margin-top: 50px;">ממתין לנתונים...</div>
+</div>
 
 <div class="nav-bar">
-    <span>📊 דוחות</span>
+    <span>📊 דוח יומי</span>
     <span>🚛 נהגים</span>
     <span>⚠️ חריגות</span>
 </div>
 
 <script>
-    // המוח שחוקר את ה-CSV שהעלית (123.csv)
-    function processAppCSV(text) {
-        const rows = text.split('\n');
-        const list = document.getElementById('driver-list');
-        list.innerHTML = "<h3>רשימת נהגים להיום:</h3>";
+    document.getElementById('csv-file').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
 
-        const drivers = {};
-        for (let i = 7; i < rows.length; i++) {
-            const cols = rows[i].split(',');
-            if (cols.length < 10) continue;
-            const name = cols[1].replace(/"/g, '');
-            const status = cols[8].replace(/"/g, '');
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            // פענוח עברית (Windows-1255)
+            const decoder = new TextDecoder('windows-1255');
+            const text = decoder.decode(event.target.result);
+            processData(text);
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    function processData(csvText) {
+        const lines = csvText.split('\n');
+        const summary = {};
+
+        // המוח סורק כל אות בשורה
+        for (let i = 7; i < lines.length; i++) {
+            // Regex שמטפל בפסיקים בתוך כתובות (גרשיים)
+            const cols = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            if (!cols || cols.length < 9) continue;
+
+            const name = cols[1].replace(/"/g, '').trim();
+            const status = cols[8] ? cols[8].replace(/"/g, '').trim() : "";
             
-            if (!drivers[name]) drivers[name] = { pto: 0, idle: 0 };
-            if (status.includes('PTO')) drivers[name].pto++;
-            if (status.includes('עומד מונע')) drivers[name].idle++;
+            if (!name || name === "תג זיהוי" || name === "-") continue;
+
+            if (!summary[name]) summary[name] = { pto: 0, idle: 0, lastAddr: "" };
+
+            // המוח לומד סטטוסים
+            if (status.includes('PTO')) summary[name].pto++;
+            if (status.includes('עומד מונע')) summary[name].idle++;
+            summary[name].lastAddr = cols[6].replace(/"/g, '');
         }
 
-        Object.keys(drivers).forEach(name => {
-            if (name === "תג זיהוי" || name === "-") return;
-            const anomaly = drivers[name].idle > 0 ? '<span class="anomaly-badge">חריגת סרק!</span>' : '';
-            list.innerHTML += `
-                <button class="driver-btn">
-                    <span>${name}</span>
-                    <span>${drivers[name].pto} הפעלות מנוף ${anomaly}</span>
-                </button>
+        renderApp(summary);
+    }
+
+    function renderApp(data) {
+        const container = document.getElementById('app-content');
+        container.innerHTML = "";
+
+        Object.keys(data).forEach(name => {
+            const d = data[name];
+            const ptoClass = d.pto > 0 ? 'has-pto' : '';
+            const idleClass = d.idle > 0 ? 'has-idle' : '';
+            
+            container.innerHTML += `
+                <div class="driver-card ${ptoClass} ${idleClass}">
+                    <div class="info">
+                        <span class="name">${name}</span>
+                        <span class="stats">📍 ${d.lastAddr.split(',')[0]}</span>
+                    </div>
+                    <div style="display: flex; gap: 5px;">
+                        ${d.pto > 0 ? `<span class="badge badge-pto">מנוף: ${d.pto}</span>` : ''}
+                        ${d.idle > 0 ? `<span class="badge badge-idle">סרק!</span>` : ''}
+                    </div>
+                </div>
             `;
         });
     }
-
-    document.getElementById('appUpload').addEventListener('change', function(e) {
-        const reader = new FileReader();
-        reader.onload = (ev) => processAppCSV(ev.target.result);
-        reader.readAsText(e.target.files[0], 'windows-1255');
-    });
 </script>
-
 </body>
 </html>
