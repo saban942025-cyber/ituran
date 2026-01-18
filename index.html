@@ -45,38 +45,20 @@
     <h2 id="current-driver-title" style="color: var(--ituran-blue);"></h2>
     <div id="timeline-container"></div>
 </div>
-
 <script>
-    let fleetData = {};
-    let activeTimeline = null;
-
-    document.getElementById('csvInput').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // הפתרון לג'יבריש: קריאת הקובץ בפורמט Windows-1255
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const decoder = new TextDecoder('windows-1255');
-            const csvText = decoder.decode(event.target.result);
-            processData(csvText);
-        };
-        reader.readAsArrayBuffer(file);
-    });
-
     function processData(text) {
         const lines = text.split('\n');
         fleetData = {};
         
-        // איתורן מתחילה נתונים משורה 8
         for (let i = 7; i < lines.length; i++) {
-            const cols = lines[i].split(',');
-            if (cols.length < 10) continue;
+            // טיפול חכם בשורות עם פסיקים בתוך גרשיים (כתובות)
+            const cols = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            if (!cols || cols.length < 9) continue;
 
-            const timeStr = cols[0].trim();
-            const driverName = cols[1].trim(); // תג זיהוי
-            const address = cols[6].trim();
-            const status = cols[8] ? cols[8].replace(/\./g, '').trim() : "";
+            const timeStr = cols[0].replace(/"/g, '').trim();
+            const driverName = cols[1].replace(/"/g, '').trim(); 
+            const address = cols[6] ? cols[6].replace(/"/g, '').trim() : "";
+            const status = cols[8] ? cols[8].replace(/"/g, '').replace(/\./g, '').trim() : "";
 
             if (!driverName || driverName === "תג זיהוי" || driverName === "-") continue;
 
@@ -84,50 +66,48 @@
                 fleetData[driverName] = [];
             }
 
-            if (status.includes('PTO') || status.includes('תנועה') || status.includes('מונע')) {
+            // חיפוש מילות מפתח בסטטוס
+            const isPTO = status.includes('PTO') || status.includes('מנוף');
+            const isDrive = status.includes('תנועה') || (status.includes('מונע') && !status.includes('עומד'));
+            const isIdle = status.includes('עומד מונע') || status.includes('סרק');
+
+            if (isPTO || isDrive || isIdle) {
                 fleetData[driverName].push({
                     start: moment(timeStr, "DD/MM/YYYY HH:mm:ss").toDate(),
                     content: status,
-                    className: status.includes('PTO') ? 'מנוף' : status.includes('תנועה') ? 'נסיעה' : 'סרק',
-                    title: `כתובת: ${address}`
+                    className: isPTO ? 'מנוף' : isDrive ? 'נסיעה' : 'סרק',
+                    title: `מיקום: ${address}`
                 });
             }
         }
+        
+        if (Object.keys(fleetData).length === 0) {
+            alert("הקובץ נקרא אבל לא נמצאו אירועי פעילות (PTO/נסיעה). בדוק את תוכן הקובץ.");
+        }
+        
         showDriverSelection();
     }
 
-    function showDriverSelection() {
-        const container = document.getElementById('buttons-container');
-        container.innerHTML = '';
-        document.getElementById('driver-list').style.display = 'block';
-        document.getElementById('status-text').innerText = "הדוח נטען בהצלחה";
-
-        Object.keys(fleetData).forEach(driver => {
-            const btn = document.createElement('button');
-            btn.className = 'driver-btn';
-            btn.innerText = driver;
-            btn.onclick = () => renderTimeline(driver, btn);
-            container.appendChild(btn);
-        });
-    }
-
     function renderTimeline(driver, btn) {
-        // עיצוב כפתור נבחר
         document.querySelectorAll('.driver-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
         document.getElementById('analysis-section').style.display = 'block';
-        document.getElementById('current-driver-title').innerText = `ציר זמן: ${driver}`;
+        document.getElementById('current-driver-title').innerText = `דוח פעילות מפורט: ${driver}`;
 
         const container = document.getElementById('timeline-container');
         container.innerHTML = '';
 
-        const items = new vis.DataSet(fleetData[driver]);
+        // מיון הנתונים לפי זמן כדי למנוע קפיצות בגרף
+        const sortedData = fleetData[driver].sort((a, b) => a.start - b.start);
+        
+        const items = new vis.DataSet(sortedData);
         const options = {
             rtl: true,
-            stack: true,
+            stack: false, // שינוי ל-false כדי לראות אירועים חופפים (כמו מנוף בזמן שהמנוע דולק)
             orientation: 'top',
-            zoomMin: 1000 * 60 * 30, // חצי שעה מינימום זום
+            margin: { item: 10 },
+            showCurrentTime: false
         };
 
         if (activeTimeline) activeTimeline.destroy();
