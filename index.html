@@ -2,131 +2,136 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>ניהול צי איתורן - ניתוח נהגים</title>
+    <title>מערכת ניתוח נהגים - איתורן</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
     <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --blue: #0056b3; --light: #e6f0ff; --success: #28a745; --danger: #dc3545; }
-        body { font-family: sans-serif; background: #f4f7f6; margin: 0; padding: 20px; }
-        .card { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .upload-zone { border: 2px dashed var(--blue); text-align: center; padding: 30px; cursor: pointer; }
-        .driver-buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
-        .driver-btn { padding: 10px 20px; border: 1px solid var(--blue); background: white; color: var(--blue); border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .driver-btn.active { background: var(--blue); color: white; }
-        .vis-item.מנוף { background-color: var(--success); color: white; }
-        .vis-item.נסיעה { background-color: #007bff; color: white; }
-        .vis-item.סרק { background-color: var(--danger); color: white; }
-        header { background: var(--blue); color: white; padding: 15px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; }
+        :root { --ituran-blue: #0056b3; --success: #28a745; --danger: #dc3545; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .upload-area { border: 2px dashed var(--ituran-blue); text-align: center; padding: 40px; cursor: pointer; transition: 0.3s; }
+        .upload-area:hover { background: #eef4ff; }
+        .driver-btn { padding: 12px 24px; border: 2px solid var(--ituran-blue); background: white; color: var(--ituran-blue); border-radius: 25px; cursor: pointer; font-weight: bold; transition: 0.2s; margin: 5px; }
+        .driver-btn.active { background: var(--ituran-blue); color: white; }
+        header { background: var(--ituran-blue); color: white; padding: 15px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        #timeline-container { height: 400px; margin-top: 20px; }
+        .vis-item.מנוף { background-color: var(--success); border-color: #1e7e34; color: white; }
+        .vis-item.נסיעה { background-color: #007bff; border-color: #0056b3; color: white; }
+        .vis-item.סרק { background-color: var(--danger); border-color: #bd2130; color: white; }
     </style>
 </head>
 <body>
 
 <div class="card" style="padding:0;">
     <header>
-        <span><i class="fas fa-truck-moving"></i> מערכת ניתוח נהגים - איתורן</span>
-        <span id="file-name">ממתין לקובץ...</span>
+        <span><i class="fas fa-satellite"></i> ניתוח דוחות איתורן - ח.סבן</span>
+        <span id="status-text">ממתין להעלאת CSV</span>
     </header>
-    <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
-        <i class="fas fa-file-excel" style="font-size: 40px; color: var(--blue);"></i>
-        <p>לחץ כאן להעלאת דוח איתורן (CSV)</p>
-        <input type="file" id="fileInput" accept=".csv" style="display: none">
+    <div class="upload-area" onclick="document.getElementById('csvInput').click()">
+        <i class="fas fa-file-csv" style="font-size: 50px; color: var(--ituran-blue); margin-bottom: 15px;"></i>
+        <h3>גרור דוח איתורן לכאן או לחץ לבחירה</h3>
+        <input type="file" id="csvInput" accept=".csv" style="display: none;">
     </div>
 </div>
 
-<div id="driver-selector" class="driver-buttons"></div>
+<div id="driver-list" class="card" style="display:none; text-align:center;">
+    <h3>בחר נהג לניתוח פעילות:</h3>
+    <div id="buttons-container"></div>
+</div>
 
-<div class="card" id="analysis-card" style="display:none;">
-    <h2 id="selected-driver-name">בחר נהג לצפייה</h2>
-    <div id="timeline"></div>
-    <div id="stats" style="margin-top:20px; display: flex; gap: 40px;">
-        <div><strong>שעות מנוף:</strong> <span id="stat-pto">0</span></div>
-        <div><strong>שעות נסיעה:</strong> <span id="stat-drive">0</span></div>
-        <div><strong>שעות סרק:</strong> <span id="stat-idle">0</span></div>
-    </div>
+<div id="analysis-section" class="card" style="display:none;">
+    <h2 id="current-driver-title" style="color: var(--ituran-blue);"></h2>
+    <div id="timeline-container"></div>
 </div>
 
 <script>
     let fleetData = {};
-    let timeline = null;
+    let activeTimeline = null;
 
-    document.getElementById('fileInput').addEventListener('change', function(e) {
+    document.getElementById('csvInput').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
-        document.getElementById('file-name').innerText = file.name;
-        
+
+        // הפתרון לג'יבריש: קריאת הקובץ בפורמט Windows-1255
         const reader = new FileReader();
         reader.onload = function(event) {
-            parseCSV(event.target.result);
+            const decoder = new TextDecoder('windows-1255');
+            const csvText = decoder.decode(event.target.result);
+            processData(csvText);
         };
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
     });
 
-    function parseCSV(text) {
+    function processData(text) {
         const lines = text.split('\n');
         fleetData = {};
         
-        // ניתוח שורות הדוח (החל משורה 8)
+        // איתורן מתחילה נתונים משורה 8
         for (let i = 7; i < lines.length; i++) {
             const cols = lines[i].split(',');
             if (cols.length < 10) continue;
 
-            const time = cols[0];      // זמן הודעה
-            const driver = cols[1];    // תג זיהוי
-            const addr = cols[6];      // כתובת
-            const status = cols[8] ? cols[8].replace(/\./g, '') : ""; // סטטוס נקי
+            const timeStr = cols[0].trim();
+            const driverName = cols[1].trim(); // תג זיהוי
+            const address = cols[6].trim();
+            const status = cols[8] ? cols[8].replace(/\./g, '').trim() : "";
 
-            if (!driver || driver === "-" || driver === "תג זיהוי") continue;
+            if (!driverName || driverName === "תג זיהוי" || driverName === "-") continue;
 
-            if (!fleetData[driver]) {
-                fleetData[driver] = { timeline: [], stats: { pto: 0, drive: 0, idle: 0 } };
+            if (!fleetData[driverName]) {
+                fleetData[driverName] = [];
             }
 
             if (status.includes('PTO') || status.includes('תנועה') || status.includes('מונע')) {
-                fleetData[driver].timeline.push({
-                    start: moment(time, "DD/MM/YYYY HH:mm:ss").toDate(),
+                fleetData[driverName].push({
+                    start: moment(timeStr, "DD/MM/YYYY HH:mm:ss").toDate(),
                     content: status,
                     className: status.includes('PTO') ? 'מנוף' : status.includes('תנועה') ? 'נסיעה' : 'סרק',
-                    title: addr
+                    title: `כתובת: ${address}`
                 });
             }
         }
-        renderDriverButtons();
+        showDriverSelection();
     }
 
-    function renderDriverButtons() {
-        const container = document.getElementById('driver-selector');
+    function showDriverSelection() {
+        const container = document.getElementById('buttons-container');
         container.innerHTML = '';
+        document.getElementById('driver-list').style.display = 'block';
+        document.getElementById('status-text').innerText = "הדוח נטען בהצלחה";
+
         Object.keys(fleetData).forEach(driver => {
             const btn = document.createElement('button');
             btn.className = 'driver-btn';
             btn.innerText = driver;
-            btn.onclick = () => showDriverData(driver, btn);
+            btn.onclick = () => renderTimeline(driver, btn);
             container.appendChild(btn);
         });
     }
 
-    function showDriverData(driver, btn) {
-        // עיצוב כפתורים
+    function renderTimeline(driver, btn) {
+        // עיצוב כפתור נבחר
         document.querySelectorAll('.driver-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        document.getElementById('analysis-card').style.display = 'block';
-        document.getElementById('selected-driver-name').innerText = `ניתוח פעילות: ${driver}`;
+        document.getElementById('analysis-section').style.display = 'block';
+        document.getElementById('current-driver-title').innerText = `ציר זמן: ${driver}`;
 
-        const container = document.getElementById('timeline');
+        const container = document.getElementById('timeline-container');
         container.innerHTML = '';
-        
-        const items = new vis.DataSet(fleetData[driver].timeline);
-        const options = { rtl: true, stack: true, orientation: 'top' };
-        
-        if (timeline) timeline.destroy();
-        timeline = new vis.Timeline(container, items, options);
 
-        // עדכון סיכומים (דוגמה לחישוב אירועים)
-        const ptoEvents = fleetData[driver].timeline.filter(e => e.className === 'מנוף').length;
-        document.getElementById('stat-pto').innerText = `${ptoEvents} אירועי הפעלה`;
+        const items = new vis.DataSet(fleetData[driver]);
+        const options = {
+            rtl: true,
+            stack: true,
+            orientation: 'top',
+            zoomMin: 1000 * 60 * 30, // חצי שעה מינימום זום
+        };
+
+        if (activeTimeline) activeTimeline.destroy();
+        activeTimeline = new vis.Timeline(container, items, options);
     }
 </script>
 
