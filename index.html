@@ -1,22 +1,213 @@
-<script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מערכת ניהול צי - איתורן Online</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+    <script src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+    <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        :root {
+            --ituran-blue: #0056b3;
+            --ituran-light-blue: #e6f0ff;
+            --success: #28a745;
+            --danger: #dc3545;
+            --warning: #ffc107;
+            --dark: #343a40;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            color: var(--dark);
+        }
+
+        /* סרגל עליון מדמה איתורן */
+        header {
+            background-color: white;
+            border-bottom: 3px solid var(--ituran-blue);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--ituran-blue);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* מכולה ראשית */
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+
+        h2 {
+            border-bottom: 2px solid var(--ituran-light-blue);
+            padding-bottom: 10px;
+            margin-top: 0;
+            color: var(--ituran-blue);
+            font-size: 20px;
+        }
+
+        /* עיצוב ציר הזמן */
+        #visualization {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .vis-item.נסיעה { background-color: #007bff; color: white; border-color: #0056b3; }
+        .vis-item.מנוף { background-color: var(--success); color: white; border-color: #1e7e34; }
+        .vis-item.סרק { background-color: var(--danger); color: white; border-color: #bd2130; }
+        .vis-item.עמידה { background-color: #6c757d; color: white; border-color: #545b62; }
+
+        /* מקרא צבעים */
+        .legend {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; }
+
+        /* טבלת נהגים */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: var(--ituran-light-blue); text-align: right; padding: 12px; border-bottom: 2px solid #dee2e6; }
+        td { padding: 12px; border-bottom: 1px solid #eee; }
+        .status-badge { padding: 4px 8px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">
+        <i class="fas fa-satellite-dish"></i>
+        <span>Ituran Fleet Analytics</span>
+    </div>
+    <div class="user-info">
+        <span>ברוך הבא, ח.סבן</span>
+        <i class="fas fa-user-circle" style="margin-right: 10px;"></i>
+    </div>
+</header>
+
+<div class="container">
+    
+    <div class="grid card" style="display: flex; justify-content: space-around; text-align: center;">
+        <div>
+            <div style="font-size: 24px; font-weight: bold; color: var(--ituran-blue);" id="total-drivers">0</div>
+            <div style="font-size: 14px; color: #666;">נהגים פעילים</div>
+        </div>
+        <div>
+            <div style="font-size: 24px; font-weight: bold; color: var(--success);" id="total-pto">0</div>
+            <div style="font-size: 14px; color: #666;">שעות מנוף (PTO)</div>
+        </div>
+        <div>
+            <div style="font-size: 24px; font-weight: bold; color: var(--danger);" id="total-idle">0</div>
+            <div style="font-size: 14px; color: #666;">שעות סרק</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🕒 ציר זמן פעילות (Timeline)</h2>
+        <div class="legend">
+            <div class="legend-item"><span class="dot" style="background: #007bff;"></span> נסיעה</div>
+            <div class="legend-item"><span class="dot" style="background: var(--success);"></span> עבודת מנוף (PTO)</div>
+            <div class="legend-item"><span class="dot" style="background: var(--danger);"></span> סרק (עומד מונע)</div>
+        </div>
+        <div id="visualization"></div>
+    </div>
+
+</div>
 
 <script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyAXb3Of5uay1-hR9Z7WGyNwzSuUaqa4OvU",
-    authDomain: "ituran-9722e.firebaseapp.com",
-    databaseURL: "https://ituran-9722e-default-rtdb.firebaseio.com/",
-    projectId: "ituran-9722e",
-    appId: "1:18206679990:web:dc47046a30428152101717"
-  };
+    // הגדרות Firebase מתוך הנתונים שסיפקת
+    const firebaseConfig = {
+        apiKey: "AIzaSyAXb3Of5uay1-hR9Z7WGyNwzSuUaqa4OvU",
+        authDomain: "ituran-9722e.firebaseapp.com",
+        databaseURL: "https://ituran-9722e-default-rtdb.firebaseio.com/",
+        projectId: "ituran-9722e",
+        appId: "1:18206679990:web:dc47046a30428152101717"
+    };
 
-  firebase.initializeApp(firebaseConfig);
-  const database = firebase.database();
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
-  // משיכת נתונים ורינדור ציר זמן
-  database.ref('fleet_history').on('value', (snapshot) => {
-    const data = snapshot.val();
-    console.log("נתוני אמת מ-Firebase:", data);
-    // כאן נכנס הקוד של vis.Timeline שנתתי לך קודם
-  });
+    // אתחול ציר הזמן
+    const container = document.getElementById('visualization');
+    const items = new vis.DataSet();
+    const groups = new vis.DataSet();
+    const options = {
+        stack: true,
+        rtl: true,
+        orientation: 'top',
+        maxHeight: '400px',
+        editable: false
+    };
+    const timeline = new vis.Timeline(container, items, groups, options);
+
+    // האזנה לנתונים מ-Firebase
+    database.ref('fleet_history').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        items.clear();
+        groups.clear();
+
+        let driverCount = 0;
+        
+        Object.entries(data).forEach(([driver, content], index) => {
+            driverCount++;
+            groups.add({ id: index, content: driver });
+
+            if (content.timeline) {
+                content.timeline.forEach((event, eIndex) => {
+                    // יצירת פריט לציר הזמן
+                    // הנחה: לכל אירוע יש 'start' ו-'status'. 
+                    // אם אין 'end', אנחנו יוצרים בלוק של 5 דקות להצגה.
+                    const startTime = new Date(event.start);
+                    const endTime = event.end ? new Date(event.end) : new Date(startTime.getTime() + 5*60000);
+
+                    items.add({
+                        id: `${index}-${eIndex}`,
+                        group: index,
+                        start: startTime,
+                        end: endTime,
+                        content: event.status,
+                        className: event.status.includes('PTO') ? 'מנוף' : 
+                                   event.status.includes('תנועה') ? 'נסיעה' : 
+                                   event.status.includes('מונע') ? 'סרק' : 'עמידה',
+                        title: `כתובת: ${event.address || 'לא ידוע'}`
+                    });
+                });
+            }
+        });
+
+        document.getElementById('total-drivers').innerText = driverCount;
+    });
 </script>
+
+</body>
+</html>
