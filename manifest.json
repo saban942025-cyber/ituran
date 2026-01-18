@@ -1,6 +1,6 @@
 {
-  "name": "Ituran Smart Fleet",
-  "short_name": "IturanLog",
+  "name": "איתורן סבן - ניהול צי",
+  "short_name": "SabanFleet",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#0056b3",
