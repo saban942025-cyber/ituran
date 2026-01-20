@@ -3,137 +3,176 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <link rel="manifest" href="manifest.json">
-    <title>Saban Elite Fleet</title>
+    <title>Saban Elite Fleet AI</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
-        :root { --main: #0046ad; --success: #2ecc71; --warn: #f1c40f; --danger: #e74c3c; --bg: #fdfdfd; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: var(--bg); margin: 0; color: #333; }
+        :root { --primary: #0046ad; --success: #00b894; --danger: #ff4757; --warning: #ffa502; --light-bg: #f4f7fa; }
+        body { font-family: 'Segoe UI', system-ui; background: var(--light-bg); margin: 0; color: #2d3436; padding-bottom: 30px; }
         
         /* המבורגר יוקרתי */
-        header { background: #fff; padding: 15px 25px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; position: sticky; top: 0; z-index: 1000; }
-        .menu-btn { font-size: 22px; color: var(--main); cursor: pointer; }
-        .brand { font-weight: 900; color: var(--main); font-size: 1.3rem; }
+        header { background: #fff; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e1e8ef; position: sticky; top: 0; z-index: 1000; }
+        .menu-icon { font-size: 24px; color: var(--primary); cursor: pointer; }
+        .logo { font-weight: 900; color: var(--primary); font-size: 1.4rem; letter-spacing: -0.5px; }
 
-        /* כרטיסי נהגים - עיצוב שער */
+        .side-nav { position: fixed; right: -280px; top: 0; width: 280px; height: 100%; background: #fff; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 2000; box-shadow: -5px 0 20px rgba(0,0,0,0.1); padding: 30px 20px; }
+        .side-nav.open { right: 0; }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; z-index: 1500; backdrop-filter: blur(2px); }
+        .overlay.show { display: block; }
+
+        /* כרטיסי שער נהגים */
         .dashboard { padding: 20px; display: grid; gap: 20px; }
-        .driver-gate { background: #fff; border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #f0f0f0; display: flex; flex-direction: column; position: relative; }
-        .driver-header { display: flex; align-items: center; margin-bottom: 15px; }
-        .p-img { width: 65px; height: 65px; border-radius: 50%; object-fit: cover; border: 3px solid #eef2f7; margin-left: 15px; }
+        .driver-gate { background: #fff; border-radius: 24px; padding: 20px; box-shadow: 0 10px 25px rgba(0,70,173,0.06); border: 1px solid #edf2f7; transition: 0.3s ease; cursor: pointer; position: relative; }
+        .driver-gate:active { transform: scale(0.98); }
+        .p-img { width: 70px; height: 70px; border-radius: 50%; object-fit: cover; border: 4px solid #f1f3f9; margin-left: 15px; }
         
-        /* ניתוח המוח */
-        .brain-alert { background: #f8faff; border-right: 4px solid var(--main); padding: 12px; border-radius: 8px; font-size: 0.9rem; margin-top: 10px; }
-        .stat-row { display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.85rem; border-top: 1px solid #f9f9f9; padding-top: 8px; }
-        
-        /* שדות ניהול דינמיים */
-        .settings-card { background: #fff; margin: 20px; border-radius: 15px; padding: 20px; border: 1px solid #eee; }
-        .input-box { display: flex; gap: 10px; margin-top: 10px; }
-        input { flex: 1; padding: 12px; border: 1.5px solid #eee; border-radius: 10px; outline: none; transition: 0.3s; }
-        input:focus { border-color: var(--main); }
+        /* ניתוחי המוח */
+        .brain-box { background: #f8fbff; border-right: 5px solid var(--primary); padding: 15px; border-radius: 12px; margin: 15px 0; font-size: 0.95rem; line-height: 1.5; }
+        .stat-badge { background: #f1f3f9; padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+        .reliability-meter { height: 6px; background: #eee; border-radius: 10px; margin-top: 10px; overflow: hidden; }
+        .reliability-fill { height: 100%; background: var(--success); transition: 1s; }
 
-        .speed-bad { color: var(--danger); font-weight: bold; }
-        .profit-good { color: var(--success); font-weight: bold; }
+        /* ניהול דינמי */
+        .settings-panel { background: #fff; margin: 20px; border-radius: 20px; padding: 20px; border: 1px solid #e1e8ef; }
+        .grid-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; }
+        input { padding: 12px; border: 2px solid #f1f3f9; border-radius: 12px; font-size: 0.9rem; outline: none; }
+        input:focus { border-color: var(--primary); }
+
+        .btn-upload { background: var(--primary); color: #fff; border: none; padding: 18px; border-radius: 18px; width: 100%; font-weight: 700; font-size: 1rem; box-shadow: 0 10px 20px rgba(0,70,173,0.25); display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="menu-btn"><i class="fas fa-bars"></i></div>
-    <div class="brand">ח.סבן - מרכז פיקוד</div>
-    <div style="width:20px;"></div>
+    <div class="menu-icon" onclick="toggleNav()"><i class="fas fa-stream"></i></div>
+    <div class="logo">SABAN ELITE AI</div>
+    <div class="menu-icon"><i class="far fa-bell"></i></div>
 </header>
 
-<div class="settings-card">
-    <h3 style="margin:0;"><i class="fas fa-calculator"></i> פרמטרים לחישוב רווחיות</h3>
-    <div class="input-box">
-        <input type="number" id="fuel" value="7.25" placeholder="מחיר סולר">
-        <input type="number" id="hourly" value="500" placeholder="תעריף שעה">
+<div class="overlay" onclick="toggleNav()"></div>
+<div class="side-nav" id="sideNav">
+    <h2 style="color:var(--primary)">ניהול מערכת</h2>
+    <div style="margin-top:30px; display:flex; flex-direction:column; gap:20px;">
+        <div><i class="fas fa-gas-pump"></i> יומן סולר חכם</div>
+        <div><i class="fas fa-users-cog"></i> הגדרות נהגים</div>
+        <div><i class="fas fa-history"></i> ארכיון דוחות</div>
+        <div><i class="fas fa-shield-alt"></i> בקרת אמינות</div>
     </div>
 </div>
 
-<div class="dashboard" id="mainDash">
-    <div style="text-align: center; color: #bbb; padding: 40px;">העלה דוח אקסל מלא מאיתורן להתחלת הניתוח...</div>
+<div class="settings-panel">
+    <h3 style="margin:0;"><i class="fas fa-brain"></i> הגדרות "המוח" לחישוב רווח</h3>
+    <div class="grid-inputs">
+        <input type="number" id="fuelPrice" value="7.25" placeholder="מחיר סולר">
+        <input type="number" id="hourRate" value="500" placeholder="תעריף מנוף">
+    </div>
 </div>
 
-<div style="position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 90%;">
-    <button onclick="document.getElementById('f').click()" style="width:100%; padding:18px; border-radius:15px; border:none; background:var(--main); color:#fff; font-weight:bold; box-shadow: 0 10px 20px rgba(0,70,173,0.3);">
-        <i class="fas fa-file-excel"></i> טען דוח נתונים מלא
+<div class="dashboard" id="driverGrid">
+    <div style="text-align:center; padding:50px; color:#a0aec0;">
+        <i class="fas fa-file-invoice" style="font-size:40px; margin-bottom:15px;"></i>
+        <br>ממתין לדוח איתורן מלא...
+    </div>
+</div>
+
+<div style="padding: 20px; position: sticky; bottom: 0;">
+    <button class="btn-upload" onclick="document.getElementById('fileIn').click()">
+        <i class="fas fa-file-excel"></i> ניתוח דוח איתורן (CSV/XLS)
     </button>
-    <input type="file" id="f" style="display:none" accept=".csv, .xlsx">
+    <input type="file" id="fileIn" style="display:none" accept=".csv">
 </div>
 
 <script>
-    // הגדרת פרופילים ותמונות
     const driverProfiles = {
-        'חכמת': { img: 'https://ibb.co/S76BMYt0', type: 'מנוף' },
-        'בורהאן': { img: 'https://i.ibb.co/S76BMYt0/burhan.jpg', type: 'רמסה' },
-        'יואב': { img: 'https://i.ibb.co/S76BMYt0/yoav.jpg', type: 'איסוזו' }
+        'חכמת': { img: 'https://ibb.co/S76BMYt0', type: 'משאית מנוף' },
+        'בורהאן': { img: 'https://ibb.co/S76BMYt0', type: 'משאית רמסה' },
+        'מוחמד אכבריה': { img: 'https://ibb.co/S76BMYt0', type: 'משאית חלוקה' }
     };
 
-    document.getElementById('f').addEventListener('change', function(e) {
+    function toggleNav() {
+        document.getElementById('sideNav').classList.toggle('open');
+        document.querySelector('.overlay').classList.toggle('show');
+    }
+
+    document.getElementById('fileIn').addEventListener('change', function(e) {
         const reader = new FileReader();
         reader.onload = (ev) => {
-            const decoder = new TextDecoder('windows-1255');
-            processFullReport(decoder.decode(ev.target.result));
+            const decoder = new TextDecoder('utf-8'); // הנתונים החדשים הם ב-UTF-8
+            processSabanReport(decoder.decode(ev.target.result));
         };
         reader.readAsArrayBuffer(e.target.files[0]);
     });
 
-    function processFullReport(data) {
-        const lines = data.split('\n');
-        const analysis = {};
+    function processSabanReport(csv) {
+        const lines = csv.split('\n');
+        const stats = {};
         
-        lines.forEach((line, idx) => {
-            if(idx < 7) return;
-            const cols = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
-            if(!cols || cols.length < 15) return;
+        // המוח מנתח את 5,699 השורות (דילוג על 8 שורות כותרת)
+        for(let i=9; i<lines.length; i++) {
+            const row = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g);
+            if(!row || row.length < 20) continue;
 
-            const name = cols[1].replace(/"/g, '').trim();
-            const status = cols[8] ? cols[8].replace(/"/g, '') : "";
-            const speed = parseInt(cols[7]) || 0;
-            const limit = parseInt(cols[23]) || 90; // נניח עמודה 23 למהירות מותרת
-            const durationStr = cols[28] || "00:00:00"; // משך זמן בפורמט שעות
+            const name = row[2].replace(/"/g, '').trim(); // תג זיהוי
+            const status = row[18].replace(/"/g, ''); // שם מצב
+            const speed = parseInt(row[14]) || 0; // מהירות
+            const speedLimit = parseInt(row[15]) || 90; // מהירות מותרת
+            const addr = row[13].replace(/"/g, ''); // כתובת
+            const duration = parseFloat(row[20]) || 0; // משך זמן בפורמט שעות
 
-            if(!analysis[name]) analysis[name] = { ptoTime: 0, speedViolations: 0, totalWork: 0, lastAddr: cols[6] };
+            if(!stats[name]) stats[name] = { ptoHours: 0, speedAlerts: 0, idleAlerts: 0, lastLoc: addr, reliability: 100 };
 
-            if(status.includes('PTO')) analysis[name].ptoTime += 0.5; // חישוב משוער לכל רשומה
-            if(speed > limit) analysis[name].speedViolations++;
-        });
-
-        renderElite(analysis);
+            if(status.includes('PTO')) stats[name].ptoHours += duration;
+            if(status.includes('עומד מונע')) stats[name].idleAlerts++;
+            if(speed > speedLimit) {
+                stats[name].speedAlerts++;
+                stats[name].reliability -= 2;
+            }
+        }
+        renderDashboard(stats);
     }
 
-    function renderElite(data) {
-        const dash = document.getElementById('mainDash');
-        dash.innerHTML = '';
-        
+    function renderDashboard(data) {
+        const grid = document.getElementById('driverGrid');
+        grid.innerHTML = '';
+        const fuel = document.getElementById('fuelPrice').value;
+        const rate = document.getElementById('hourRate').value;
+
         Object.keys(data).forEach(name => {
             if(name.includes('תג') || name === "-") return;
-            const p = driverProfiles[name] || { img: '', type: 'משאית' };
-            const diesel = document.getElementById('fuel').value;
-            const rate = document.getElementById('hourly').value;
+            const profile = driverProfiles[name] || { img: '', type: 'משאית' };
+            const profit = (data[name].ptoHours * rate).toFixed(0);
             
-            // המוח מנתח: רווחיות פריקה
-            const revenue = (data[name].ptoTime * rate).toFixed(0);
-            
-            dash.innerHTML += `
+            grid.innerHTML += `
                 <div class="driver-gate">
-                    <div class="driver-header">
-                        <img src="${p.img}" class="p-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3135/3135715.png'">
+                    <div style="display:flex; align-items:center;">
+                        <img src="${profile.img}" class="p-img" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3135/3135715.png'">
                         <div>
-                            <div style="font-weight:bold; font-size:1.1rem;">${name}</div>
-                            <div style="font-size:0.8rem; color:#888;">${p.type} | סביבת עבודה: ${data[name].lastAddr.split(',')[0]}</div>
+                            <div style="font-weight:800; font-size:1.2rem; color:var(--primary);">${name}</div>
+                            <div style="font-size:0.85rem; color:#718096;">${profile.type} | 📍 ${data[name].lastLoc.split(',')[0]}</div>
                         </div>
                     </div>
-                    <div class="brain-alert">
-                        <i class="fas fa-lightbulb" style="color:var(--warn)"></i>
-                        המוח: ${revenue > 0 ? `הכנסה משוערת מפעילות מנוף: <span class="profit-good">${revenue} ש"ח</span>` : 'לא זוהתה פעילות מנוף רווחית כרגע'}
+
+                    <div class="brain-box">
+                        <i class="fas fa-robot"></i> <strong>המוח מנתח:</strong><br>
+                        ${profit > 0 ? `פעילות מנוף הניבה <span style="color:var(--success); font-weight:bold;">₪${profit}</span> היום.` : 'לא זוהתה הכנסה ישירה מעבודת מנוף.'}
+                        ${data[name].speedAlerts > 0 ? `<br><span style="color:var(--danger);">זוהו ${data[name].speedAlerts} חריגות מהירות!</span>` : ''}
                     </div>
-                    <div class="stat-row">
-                        <span>חריגות מהירות: <span class="${data[name].speedViolations > 0 ? 'speed-bad' : ''}">${data[name].speedViolations}</span></span>
-                        <span>זמן פריקה מצטבר: ${data[name].ptoTime.toFixed(1)} שעות</span>
+
+                    <div style="display:flex; flex-wrap:wrap; gap:10px;">
+                        <div class="stat-badge"><i class="fas fa-hammer"></i> ${data[name].ptoHours.toFixed(1)} שע' מנוף</div>
+                        <div class="stat-badge"><i class="fas fa-gas-pump"></i> ${data[name].idleAlerts} סרק</div>
+                        <div class="stat-badge"><i class="fas fa-tachometer-alt"></i> חריגות מהירות: ${data[name].speedAlerts}</div>
+                    </div>
+
+                    <div style="margin-top:15px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-weight:bold;">
+                            <span>מדד אמינות (איתורן vs תעודות)</span>
+                            <span>${Math.max(data[name].reliability, 0)}%</span>
+                        </div>
+                        <div class="reliability-meter">
+                            <div class="reliability-fill" style="width:${Math.max(data[name].reliability, 0)}%; background:${data[name].reliability < 80 ? 'var(--danger)' : 'var(--success)'}"></div>
+                        </div>
                     </div>
                 </div>
             `;
